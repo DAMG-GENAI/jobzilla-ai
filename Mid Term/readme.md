@@ -5,7 +5,7 @@
 ### Implementing Three Core Communication Mechanisms from MetaGPT's Architecture
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--3.5--Turbo-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/)
 [![Jupyter](https://img.shields.io/badge/Jupyter-Notebook-F37626?style=for-the-badge&logo=jupyter&logoColor=white)](https://jupyter.org/)
 [![Requests](https://img.shields.io/badge/Requests-HTTP%20Client-green?style=for-the-badge&logo=python&logoColor=white)](https://requests.readthedocs.io/)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
@@ -391,9 +391,9 @@ Each notebook produces a complete software project. Example with prompt *"Create
 
 | Member | Section | Mechanism |
 |--------|---------|-----------|
-| Person 1 | Section 1 | Standardized Operating Procedures |
+| Inchara Adigante | Section 1 | Standardized Operating Procedures |
 | Sahil Kasliwal | Section 2 | Publish-Subscribe Protocol |
-| Person 3 | Section 3 | Executable Feedback Mechanism |
+| Hrishi Pal| Section 3 | Executable Feedback Mechanism |
 
 ---
 
