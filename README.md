@@ -1,9 +1,21 @@
-# 🦖 Jobzilla AI (formerly KillMatch)
+# 🎯 Jobzilla AI - AI-Powered Job Application Intelligence
 
-**The AI-Powered Job Application Assistant that helps you land your dream job.**
+
+Jobzilla AI is a comprehensive intelligent assistant designed to be your personalized job search and application companion. Built on a modern microservices architecture with Medallion data pipeline (Bronze-Silver-Gold), this application leverages cutting-edge AI technologies for semantic job matching, multi-agent analysis, and automated application generation. Powered by OpenAI GPT-4, LangGraph agents, and vector embeddings, it helps job seekers discover relevant opportunities, analyze job-candidate fit through AI debate, generate personalized cover letters, and integrate GitHub portfolios—all tailored to your specific skills, experience, and career goals.
 
 ---
+## ✍️ Authors
+1. Hrishi Pal
+2. Inchara Adigante
+3. Sahil Kasliwal
 
+---
+## 📝 Project Evolution:
+Here is a logging of our Project on weekly basis
+
+📂 https://shorturl.at/OjOAG
+
+---
 ## 🏗️ System Architecture
 
 ```mermaid
