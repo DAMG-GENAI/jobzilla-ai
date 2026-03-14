@@ -1,6 +1,7 @@
 <div align="center">
 
-# 🤖 MetaGPT Multi-Agent Software Development Pipeline
+# 🤖 MetaGPT Meta Programming for a Multi-Agent Collaborative Framework
+
 
 ### Implementing Three Core Communication Mechanisms from MetaGPT's Architecture
 
