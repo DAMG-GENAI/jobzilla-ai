@@ -20,7 +20,7 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_S3_BUCKET=${AWS_S3_BUCKET}
       - AWS_REGION=${AWS_REGION}
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/killmatch
+      - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=redis://redis:6379/0
       - MCP_GITHUB_SERVER_URL=http://mcp-github:8001
       - MCP_JOBMARKET_SERVER_URL=http://mcp-jobmarket:8002
@@ -83,11 +83,11 @@ services:
       - "8501:8501"
     environment:
       - BACKEND_URL=http://backend:8000
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:-34.30.177.68}
       - DB_PORT=5432
-      - DB_NAME=killmatch
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
+      - DB_NAME=${DB_NAME:-jobskillsql}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-GenAI_KA7}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       - backend
@@ -151,13 +151,13 @@ services:
       - "8080:8080"
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://postgres:postgres@postgres:5432/airflow
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN}
       - AIRFLOW__CORE__FERNET_KEY=your-fernet-key-here
       - AIRFLOW__WEBSERVER__SECRET_KEY=your-secret-key-here
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
       - TAVILY_API_KEY=${TAVILY_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres:5432/killmatch
+      - DATABASE_URL=${DATABASE_URL}
       - MCP_JOBMARKET_URL=http://mcp-jobmarket:8002
     depends_on:
       postgres:
