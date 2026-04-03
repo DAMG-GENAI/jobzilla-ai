@@ -44,6 +44,7 @@ jobs:
             --set-env-vars "BACKEND_URL=https://killmatch-backend-${{ env.PROJECT_ID }}.a.run.app" \
             --set-env-vars "DATABASE_URL=${{ secrets.DATABASE_URL }}" \
             --set-env-vars "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" \
+            --port 8501 \
             --memory 1Gi \
             --min-instances 0 \
             --max-instances 2
