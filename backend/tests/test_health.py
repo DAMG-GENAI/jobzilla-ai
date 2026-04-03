@@ -1,9 +1,8 @@
 """Tests for health check and core API endpoints."""
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-
 from app.main import app
+from httpx import ASGITransport, AsyncClient
 
 
 @pytest.fixture
