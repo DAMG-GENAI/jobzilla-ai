@@ -6,7 +6,6 @@ Wires together all agent nodes into a StateGraph for job-resume matching.
 
 import time
 from datetime import datetime
-from typing import Optional
 
 from langgraph.graph import END, StateGraph
 
@@ -14,16 +13,14 @@ from app.agents.edges.should_redebate import should_redebate
 from app.agents.nodes.coach import coach_node
 from app.agents.nodes.cover_writer import cover_writer_node
 from app.agents.nodes.improvement import improvement_node
-from app.agents.nodes.resume_generator import resume_generator_node
 from app.agents.nodes.judge import judge_node
 from app.agents.nodes.profile_parser import profile_parser_node
 from app.agents.nodes.recruiter import recruiter_node
+from app.agents.nodes.resume_generator import resume_generator_node
 from app.agents.nodes.skill_gap import skill_gap_node
 from app.agents.state import AgentState
-from app.core.config import settings
 from app.models import (
     AgentPipelineResult,
-    DebateRound,
     GitHubProfile,
     JobListing,
     ResumeData,
@@ -35,16 +32,16 @@ from app.models import (
 def create_agent_graph() -> StateGraph:
     """
     Create the LangGraph StateGraph for the agent pipeline.
-    
+
     Flow:
-    START → profile_parser → recruiter → coach → judge 
+    START → profile_parser → recruiter → coach → judge
          → [redebate?] → (yes) → recruiter → coach → judge
          → (no) → skill_gap → cover_writer → resume_generator → improvement → END
     """
-    
+
     # Create the graph
     graph = StateGraph(AgentState)
-    
+
     # Add nodes
     graph.add_node("profile_parser", profile_parser_node)
     graph.add_node("recruiter", recruiter_node)
@@ -54,15 +51,15 @@ def create_agent_graph() -> StateGraph:
     graph.add_node("cover_writer", cover_writer_node)
     graph.add_node("resume_generator", resume_generator_node)
     graph.add_node("improvement", improvement_node)
-    
+
     # Set entry point
     graph.set_entry_point("profile_parser")
-    
+
     # Add edges
     graph.add_edge("profile_parser", "recruiter")
     graph.add_edge("recruiter", "coach")
     graph.add_edge("coach", "judge")
-    
+
     # Conditional edge: redebate or continue
     graph.add_conditional_edges(
         "judge",
@@ -70,14 +67,14 @@ def create_agent_graph() -> StateGraph:
         {
             "redebate": "recruiter",
             "continue": "skill_gap",
-        }
+        },
     )
-    
+
     graph.add_edge("skill_gap", "cover_writer")
     graph.add_edge("cover_writer", "resume_generator")
     graph.add_edge("resume_generator", "improvement")
     graph.add_edge("improvement", END)
-    
+
     return graph
 
 
@@ -97,31 +94,31 @@ def get_compiled_graph():
 async def run_agent_pipeline(
     resume: ResumeData,
     job: JobListing,
-    github_username: Optional[str] = None,
+    github_username: str | None = None,
     include_cover_letter: bool = True,
     include_skill_gaps: bool = True,
 ) -> AgentPipelineResult:
     """
     Run the complete agent pipeline for job-resume matching.
-    
+
     Args:
         resume: Parsed resume data
         job: Job listing to match against
         github_username: Optional GitHub username for additional context
         include_cover_letter: Whether to generate a cover letter
         include_skill_gaps: Whether to analyze skill gaps
-        
+
     Returns:
         AgentPipelineResult with debate rounds, verdict, and outputs
     """
     start_time = time.time()
-    
+
     # Initialize state
     github_profile = None
     if github_username:
         # TODO: Fetch from MCP server
         github_profile = GitHubProfile(username=github_username)
-    
+
     initial_state: AgentState = {
         "resume_data": resume,
         "job_data": job,
@@ -140,10 +137,10 @@ async def run_agent_pipeline(
         "messages": [],
         "processing_started_at": datetime.utcnow().isoformat(),
     }
-    
+
     # Run the graph
     graph = get_compiled_graph()
-    
+
     try:
         final_state = await graph.ainvoke(initial_state)
     except Exception as e:
@@ -167,10 +164,10 @@ async def run_agent_pipeline(
             ),
             processing_time_seconds=time.time() - start_time,
         )
-    
+
     # Build result
     processing_time = time.time() - start_time
-    
+
     # Convert SkillGap objects to dicts if needed
     skill_gaps_raw = final_state.get("skill_gaps", [])
     skill_gaps_dicts = []
@@ -183,14 +180,17 @@ async def run_agent_pipeline(
             skill_gaps_dicts.append(sg.dict())
         else:
             skill_gaps_dicts.append({"skill_name": str(sg)})
-    
+
     return AgentPipelineResult(
-        resume_summary=final_state.get("parsed_experience_summary", resume.summary or ""),
+        resume_summary=final_state.get(
+            "parsed_experience_summary", resume.summary or ""
+        ),
         job_summary=f"{job.title} at {job.company}",
         github_summary=github_profile.username if github_profile else None,
         debate_rounds=final_state.get("debate_rounds", []),
         total_rounds=final_state.get("current_round", 0),
-        verdict=final_state.get("final_verdict") or Verdict(
+        verdict=final_state.get("final_verdict")
+        or Verdict(
             final_score=50,
             recommendation="Incomplete",
             reasoning=VerdictReasoning(

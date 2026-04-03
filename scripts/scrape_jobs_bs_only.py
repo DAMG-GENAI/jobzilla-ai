@@ -35,7 +35,9 @@ def _html_to_text(html: str | None) -> str:
 
 def _humanize_name(raw: str) -> str:
     """Convert token-like names to a readable company name."""
-    return re.sub(r"\s{2,}", " ", raw.replace("-", " ").replace("_", " ")).strip().title()
+    return (
+        re.sub(r"\s{2,}", " ", raw.replace("-", " ").replace("_", " ")).strip().title()
+    )
 
 
 def _get_seed_urls(seed_urls: list[str] | None = None) -> list[str]:
@@ -96,7 +98,9 @@ def _extract_lever_site_token(seed_url: str) -> str | None:
     return None
 
 
-def _fetch_greenhouse_jobs(session: requests.Session, seed_url: str) -> list[dict[str, Any]]:
+def _fetch_greenhouse_jobs(
+    session: requests.Session, seed_url: str
+) -> list[dict[str, Any]]:
     board = _extract_greenhouse_board_token(seed_url)
     if not board:
         print(f"[greenhouse] Could not parse board token from seed: {seed_url}")

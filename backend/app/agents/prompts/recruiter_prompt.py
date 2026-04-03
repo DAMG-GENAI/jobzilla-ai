@@ -32,12 +32,14 @@ Provide your arguments as a structured list. For each concern:
 Remember: Your job is to stress-test the candidate's fit. The Coach agent will present the positives. Together, you help the Judge make a balanced decision."""
 
 
-def get_recruiter_prompt(resume_summary: str, job_summary: str, skills: list, job_requirements: list) -> str:
+def get_recruiter_prompt(
+    resume_summary: str, job_summary: str, skills: list, job_requirements: list
+) -> str:
     """Generate the recruiter evaluation prompt."""
-    
+
     matching = set(skills) & set(job_requirements)
     missing = set(job_requirements) - set(skills)
-    
+
     return f"""{RECRUITER_SYSTEM_PROMPT}
 
 ## Candidate Profile:

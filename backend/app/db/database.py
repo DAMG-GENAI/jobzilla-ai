@@ -3,19 +3,17 @@ Database Connection and Session Management
 """
 
 import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.db.models import Base
 
-
 # Database URL from environment
 DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres@localhost:5432/killmatch"
+    "DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/killmatch"
 )
 
 

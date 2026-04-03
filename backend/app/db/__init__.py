@@ -2,8 +2,8 @@
 Database Package
 """
 
-from app.db.database import get_db, get_session, create_tables
-from app.db.models import Base, User, Resume, Job, JobMatch, CoverLetter, SkillTrend
+from app.db.database import create_tables, get_db, get_session
+from app.db.models import Base, CoverLetter, Job, JobMatch, Resume, SkillTrend, User
 
 __all__ = [
     "get_db",

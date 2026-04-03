@@ -9,7 +9,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import analytics, cover_letter, debate, headhunter, health, match, profile, resume_generator
+from app.api.routes import (
+    analytics,
+    cover_letter,
+    debate,
+    headhunter,
+    health,
+    match,
+    profile,
+    resume_generator,
+)
 from app.core.config import settings
 from app.core.logging import setup_logging
 

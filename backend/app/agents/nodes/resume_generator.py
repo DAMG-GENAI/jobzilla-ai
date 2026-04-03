@@ -4,7 +4,7 @@ Resume Generator Node
 Generates ATS-optimized, 1-page resumes tailored for graduate students.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from langchain_openai import ChatOpenAI
 
@@ -14,7 +14,7 @@ from app.core.config import settings
 from app.models import JobListing, ResumeData
 
 
-async def resume_generator_node(state: AgentState) -> Dict[str, Any]:
+async def resume_generator_node(state: AgentState) -> dict[str, Any]:
     """
     LangGraph node that generates a tailored resume.
 
@@ -35,18 +35,17 @@ async def resume_generator_node(state: AgentState) -> Dict[str, Any]:
 
     return {
         "generated_resume": result.get("resume_markdown", ""),
-        "messages": state.get("messages", []) + [
-            {"role": "resume_generator", "content": "Generated tailored resume"}
-        ],
+        "messages": state.get("messages", [])
+        + [{"role": "resume_generator", "content": "Generated tailored resume"}],
     }
 
 
 async def generate_resume(
     resume: ResumeData,
-    job: Optional[JobListing] = None,
-    target_role: Optional[str] = None,
-    raw_resume_text: Optional[str] = None,
-) -> Dict[str, Any]:
+    job: JobListing | None = None,
+    target_role: str | None = None,
+    raw_resume_text: str | None = None,
+) -> dict[str, Any]:
     """
     Generate an ATS-optimized resume using LLM.
 
@@ -58,7 +57,7 @@ async def generate_resume(
     prompt = _build_user_prompt(resume, job, target_role, raw_resume_text)
 
     resume_markdown = ""
-    assumptions_made: List[str] = []
+    assumptions_made: list[str] = []
 
     if settings.openai_api_key:
         llm = ChatOpenAI(
@@ -67,10 +66,12 @@ async def generate_resume(
             temperature=0.6,  # Balanced: creative but consistent
         )
 
-        response = await llm.ainvoke([
-            {"role": "system", "content": RESUME_GENERATOR_SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ])
+        response = await llm.ainvoke(
+            [
+                {"role": "system", "content": RESUME_GENERATOR_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ]
+        )
 
         raw = response.content
 
@@ -98,7 +99,9 @@ async def generate_resume(
     else:
         # Fallback template when no API key is configured
         resume_markdown = _build_fallback_resume(resume, target_role, raw_resume_text)
-        assumptions_made = ["Generated using fallback template — configure OpenAI API key for AI-powered generation"]
+        assumptions_made = [
+            "Generated using fallback template — configure OpenAI API key for AI-powered generation"
+        ]
 
     word_count = len(resume_markdown.split())
 
@@ -113,15 +116,16 @@ async def generate_resume(
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _build_user_prompt(
     resume: ResumeData,
-    job: Optional[JobListing],
+    job: JobListing | None,
     target_role: str,
-    raw_resume_text: Optional[str] = None,
+    raw_resume_text: str | None = None,
 ) -> str:
     """Build the user-facing prompt from structured ResumeData."""
 
-    sections: List[str] = []
+    sections: list[str] = []
 
     # 1. Contact info
     sections.append("## Candidate Information")
@@ -166,9 +170,13 @@ def _build_user_prompt(
     # 5. Skills
     if resume.skills:
         sections.append("\n## Skills")
-        by_cat: Dict[str, List[str]] = {}
+        by_cat: dict[str, list[str]] = {}
         for s in resume.skills:
-            cat = s.category.value if hasattr(s.category, "value") else (s.category or "Other")
+            cat = (
+                s.category.value
+                if hasattr(s.category, "value")
+                else (s.category or "Other")
+            )
             by_cat.setdefault(cat, []).append(s.name)
         for cat, names in by_cat.items():
             sections.append(f"- **{cat}:** {', '.join(names)}")
@@ -206,22 +214,36 @@ def _build_user_prompt(
     if resume.certifications:
         sections.append("\n## Certifications")
         for cert in resume.certifications:
-            date_str = f" | {cert.date_obtained.strftime('%b %Y')}" if cert.date_obtained else ""
+            date_str = (
+                f" | {cert.date_obtained.strftime('%b %Y')}"
+                if cert.date_obtained
+                else ""
+            )
             sections.append(f"- **{cert.name}** | {cert.issuer}{date_str}")
 
     # 8.5 Publications
     if resume.publications:
         sections.append("\n## Publications")
         for pub in resume.publications:
-            date_str = f" | {pub.date_published.strftime('%b %Y')}" if pub.date_published else ""
-            sections.append(f"- **{pub.title}** | {pub.publisher or 'Independent'}{date_str}")
+            date_str = (
+                f" | {pub.date_published.strftime('%b %Y')}"
+                if pub.date_published
+                else ""
+            )
+            sections.append(
+                f"- **{pub.title}** | {pub.publisher or 'Independent'}{date_str}"
+            )
 
     # 8.6 Achievements
     if resume.achievements:
         sections.append("\n## Achievements / Awards")
         for ach in resume.achievements:
-            date_str = f" | {ach.date_received.strftime('%b %Y')}" if ach.date_received else ""
-            sections.append(f"- **{ach.title}** | {ach.issuer or 'Independent'}{date_str}")
+            date_str = (
+                f" | {ach.date_received.strftime('%b %Y')}" if ach.date_received else ""
+            )
+            sections.append(
+                f"- **{ach.title}** | {ach.issuer or 'Independent'}{date_str}"
+            )
 
     # 9. Job context (optional, for tailoring)
     if job:
@@ -236,40 +258,251 @@ def _build_user_prompt(
 
         # Explicit ATS keyword optimization instruction
         import re as _re
+
         _jd_stop = {
-            "and","or","the","a","an","in","on","at","to","for","of","with","is","are",
-            "be","we","you","our","your","will","have","has","that","this","as","by",
-            "from","it","who","what","how","not","can","all","also","must","very",
-            "such","than","about","any","into","then","them","their","more","would",
-            "could","should","been","being","were","was","other","some","just",
-            "these","those","each","every","using","used","able","well","work",
-            "working","including","ability","academic","activities","another",
-            "approach","applying","across","along","among","around","based",
-            "become","before","between","both","bring","build","building","business",
-            "come","company","complex","contribute","create","current","day",
-            "demonstrate","develop","developing","different","drive","during",
-            "effort","enable","end","ensure","environment","established","even",
-            "experience","experienced","first","follow","found","full","generate",
-            "get","give","good","great","grow","growth","help","high","highly",
-            "ideal","identify","impact","implement","important","improve","include",
-            "increase","information","internal","involve","join","keep","key",
-            "know","knowledge","large","last","lead","learn","level","like","long",
-            "look","looking","maintain","make","making","manage","many","may",
-            "meet","multiple","need","new","next","offer","open","opportunity",
-            "over","own","part","participate","perform","play","plus","position",
-            "possible","practice","prefer","preferred","problem","process",
-            "product","professional","provide","range","related","require",
-            "required","requirement","requirements","responsible","result",
-            "role","run","see","seek","seeking","serve","set","show","significant",
-            "solve","solving","specific","start","still","strong","success",
-            "successful","support","take","team","teams","through","time",
-            "together","top","track","turn","understand","understanding","upon",
-            "value","want","way","while","within","without","world","write",
-            "writing","year","years","ready","quickly","often","best",
-            "one","two","three","four","five","six","several",
+            "and",
+            "or",
+            "the",
+            "a",
+            "an",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "is",
+            "are",
+            "be",
+            "we",
+            "you",
+            "our",
+            "your",
+            "will",
+            "have",
+            "has",
+            "that",
+            "this",
+            "as",
+            "by",
+            "from",
+            "it",
+            "who",
+            "what",
+            "how",
+            "not",
+            "can",
+            "all",
+            "also",
+            "must",
+            "very",
+            "such",
+            "than",
+            "about",
+            "any",
+            "into",
+            "then",
+            "them",
+            "their",
+            "more",
+            "would",
+            "could",
+            "should",
+            "been",
+            "being",
+            "were",
+            "was",
+            "other",
+            "some",
+            "just",
+            "these",
+            "those",
+            "each",
+            "every",
+            "using",
+            "used",
+            "able",
+            "well",
+            "work",
+            "working",
+            "including",
+            "ability",
+            "academic",
+            "activities",
+            "another",
+            "approach",
+            "applying",
+            "across",
+            "along",
+            "among",
+            "around",
+            "based",
+            "become",
+            "before",
+            "between",
+            "both",
+            "bring",
+            "build",
+            "building",
+            "business",
+            "come",
+            "company",
+            "complex",
+            "contribute",
+            "create",
+            "current",
+            "day",
+            "demonstrate",
+            "develop",
+            "developing",
+            "different",
+            "drive",
+            "during",
+            "effort",
+            "enable",
+            "end",
+            "ensure",
+            "environment",
+            "established",
+            "even",
+            "experience",
+            "experienced",
+            "first",
+            "follow",
+            "found",
+            "full",
+            "generate",
+            "get",
+            "give",
+            "good",
+            "great",
+            "grow",
+            "growth",
+            "help",
+            "high",
+            "highly",
+            "ideal",
+            "identify",
+            "impact",
+            "implement",
+            "important",
+            "improve",
+            "include",
+            "increase",
+            "information",
+            "internal",
+            "involve",
+            "join",
+            "keep",
+            "key",
+            "know",
+            "knowledge",
+            "large",
+            "last",
+            "lead",
+            "learn",
+            "level",
+            "like",
+            "long",
+            "look",
+            "looking",
+            "maintain",
+            "make",
+            "making",
+            "manage",
+            "many",
+            "may",
+            "meet",
+            "multiple",
+            "need",
+            "new",
+            "next",
+            "offer",
+            "open",
+            "opportunity",
+            "over",
+            "own",
+            "part",
+            "participate",
+            "perform",
+            "play",
+            "plus",
+            "position",
+            "possible",
+            "practice",
+            "prefer",
+            "preferred",
+            "problem",
+            "process",
+            "product",
+            "professional",
+            "provide",
+            "range",
+            "related",
+            "require",
+            "required",
+            "requirement",
+            "requirements",
+            "responsible",
+            "result",
+            "role",
+            "run",
+            "see",
+            "seek",
+            "seeking",
+            "serve",
+            "set",
+            "show",
+            "significant",
+            "solve",
+            "solving",
+            "specific",
+            "start",
+            "still",
+            "strong",
+            "success",
+            "successful",
+            "support",
+            "take",
+            "team",
+            "teams",
+            "through",
+            "time",
+            "together",
+            "top",
+            "track",
+            "turn",
+            "understand",
+            "understanding",
+            "upon",
+            "value",
+            "want",
+            "way",
+            "while",
+            "within",
+            "without",
+            "world",
+            "write",
+            "writing",
+            "year",
+            "years",
+            "ready",
+            "quickly",
+            "often",
+            "best",
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+            "six",
+            "several",
         }
         jd_words = set(_re.findall(r"[a-zA-Z][a-zA-Z0-9+#._/-]{3,}", job.description))
-        jd_kws = sorted([w for w in jd_words if w.lower() not in _jd_stop and len(w) >= 4])[:40]
+        jd_kws = sorted(
+            [w for w in jd_words if w.lower() not in _jd_stop and len(w) >= 4]
+        )[:40]
         if jd_kws:
             sections.append(
                 f"\n> **ATS OPTIMIZATION — CRITICAL RULES**:\n"
@@ -284,7 +517,9 @@ def _build_user_prompt(
 
     # Add raw resume text so LLM can recover any data the parser missed
     if raw_resume_text and raw_resume_text.strip():
-        sections.append("\n## Full Resume Text (use this to extract any missing sections)")
+        sections.append(
+            "\n## Full Resume Text (use this to extract any missing sections)"
+        )
         sections.append("```")
         sections.append(raw_resume_text[:2500])  # tighter cap to save tokens
         sections.append("```")
@@ -324,49 +559,59 @@ def _build_user_prompt(
 def _build_fallback_resume(
     resume: ResumeData,
     target_role: str,
-    raw_resume_text: Optional[str] = None,
+    raw_resume_text: str | None = None,
 ) -> str:
     """Build a Markdown resume from structured data + raw text fallback."""
 
-    lines: List[str] = []
+    lines: list[str] = []
 
     # Contact
     lines.append(f"# {resume.name}")
     contact_parts = [p for p in [resume.location, resume.phone, resume.email] if p]
     if contact_parts:
         lines.append(" | ".join(contact_parts))
-    link_parts = [p for p in [resume.linkedin_url, resume.github_url, resume.portfolio_url] if p]
+    link_parts = [
+        p for p in [resume.linkedin_url, resume.github_url, resume.portfolio_url] if p
+    ]
     if link_parts:
         lines.append(" | ".join(link_parts))
     lines.append("")
 
     # Check if structured data is sparse
     has_experience = bool(resume.experience)
-    has_education = bool(resume.education)
+    bool(resume.education)
     has_projects = bool(resume.projects)
 
     # If structured data is mostly empty but we have raw text,
     # use the raw text as the resume content directly (cleaned up)
-    if not has_experience and not has_projects and raw_resume_text and len(raw_resume_text) > 200:
+    if (
+        not has_experience
+        and not has_projects
+        and raw_resume_text
+        and len(raw_resume_text) > 200
+    ):
         # The raw text IS the resume — just present it with basic formatting
         lines.append("")
 
         # Try to extract sections from raw text
         import re
+
         raw = raw_resume_text
 
         # Common section headers to detect
         section_patterns = [
-            (r'(?i)\b(education)\b', '## Education'),
-            (r'(?i)\b(experience|work\s*history|employment)\b', '## Experience'),
-            (r'(?i)\b(projects?)\b', '## Projects'),
-            (r'(?i)\b(publications?\s*(?:&|and)?\s*certifications?|certifications?|publications?)\b', '## Publication & Certifications'),
-            (r'(?i)\b(technical\s*skills?|skills?)\b', '## Technical Skills'),
+            (r"(?i)\b(education)\b", "## Education"),
+            (r"(?i)\b(experience|work\s*history|employment)\b", "## Experience"),
+            (r"(?i)\b(projects?)\b", "## Projects"),
+            (
+                r"(?i)\b(publications?\s*(?:&|and)?\s*certifications?|certifications?|publications?)\b",
+                "## Publication & Certifications",
+            ),
+            (r"(?i)\b(technical\s*skills?|skills?)\b", "## Technical Skills"),
         ]
 
         # Split raw text into lines and try to identify sections
-        raw_lines = raw.split('\n')
-        current_section = None
+        raw_lines = raw.split("\n")
         for rline in raw_lines:
             rline_stripped = rline.strip()
             if not rline_stripped:
@@ -377,10 +622,10 @@ def _build_fallback_resume(
             is_header = False
             for pattern, header in section_patterns:
                 # A section header is typically a short line that matches a pattern
-                if re.match(r'^' + pattern + r'\s*$', rline_stripped, re.IGNORECASE) or \
-                   (len(rline_stripped) < 40 and re.search(pattern, rline_stripped)):
+                if re.match(
+                    r"^" + pattern + r"\s*$", rline_stripped, re.IGNORECASE
+                ) or (len(rline_stripped) < 40 and re.search(pattern, rline_stripped)):
                     lines.append(header)
-                    current_section = header
                     is_header = True
                     break
 
@@ -388,9 +633,9 @@ def _build_fallback_resume(
                 continue
 
             # Regular content line
-            if rline_stripped.startswith(('•', '·', '-', '*', '–')):
+            if rline_stripped.startswith(("•", "·", "-", "*", "–")):
                 # Bullet point
-                bullet_text = re.sub(r'^[•·\-*–]\s*', '', rline_stripped)
+                bullet_text = re.sub(r"^[•·\-*–]\s*", "", rline_stripped)
                 lines.append(f"- {bullet_text}")
             else:
                 lines.append(rline_stripped)
@@ -439,9 +684,13 @@ def _build_fallback_resume(
     # Skills
     if resume.skills:
         lines.append("## Technical Skills")
-        by_cat: Dict[str, List[str]] = {}
+        by_cat: dict[str, list[str]] = {}
         for s in resume.skills:
-            cat = s.category.value if hasattr(s.category, "value") else (s.category or "Other")
+            cat = (
+                s.category.value
+                if hasattr(s.category, "value")
+                else (s.category or "Other")
+            )
             by_cat.setdefault(cat, []).append(s.name)
         for cat, names in by_cat.items():
             lines.append(f"**{cat}** |||TAB||| {', '.join(names)}")
@@ -467,4 +716,3 @@ def _build_fallback_resume(
         lines.append("")
 
     return "\n".join(lines)
-

@@ -4,8 +4,6 @@ Headhunter Route
 Proactive job recommendations - "While you were away..."
 """
 
-from typing import List
-
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -16,7 +14,7 @@ router = APIRouter()
 
 class HeadhunterRecommendation(BaseModel):
     """A proactive job recommendation."""
-    
+
     job_match: JobMatch
     reason: str  # Why this job is recommended
     urgency: str  # "New", "Expiring Soon", "High Match", "Perfect Fit"
@@ -25,8 +23,8 @@ class HeadhunterRecommendation(BaseModel):
 
 class HeadhunterResponse(BaseModel):
     """Response with proactive recommendations."""
-    
-    recommendations: List[HeadhunterRecommendation]
+
+    recommendations: list[HeadhunterRecommendation]
     total_new_jobs_since_last_visit: int
     last_visit: str
 
@@ -35,12 +33,12 @@ class HeadhunterResponse(BaseModel):
 async def get_recommendations(user_id: str):
     """
     Get proactive job recommendations for a user.
-    
+
     This powers the "While you were away..." dashboard feature.
     Recommendations are pre-computed by the daily Airflow DAG.
     """
     # TODO: Fetch pre-computed recommendations from database
-    
+
     return HeadhunterResponse(
         recommendations=[],
         total_new_jobs_since_last_visit=42,

@@ -4,15 +4,12 @@ S3 Storage Service
 Handles file uploads and downloads to AWS S3 for resumes and other documents.
 """
 
-import io
 import json
 import os
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime
 
 import boto3
 from botocore.exceptions import ClientError
-
 
 # AWS Configuration
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
@@ -35,6 +32,7 @@ def get_s3_client():
 # Resume Operations
 # =============================================================================
 
+
 async def upload_resume(
     user_id: str,
     file_content: bytes,
@@ -43,22 +41,22 @@ async def upload_resume(
 ) -> dict:
     """
     Upload a resume PDF to S3.
-    
+
     Args:
         user_id: User's unique ID
         file_content: Raw bytes of the PDF
         filename: Original filename
         content_type: MIME type
-        
+
     Returns:
         dict with s3_key and url
     """
     s3 = get_s3_client()
-    
+
     # Generate unique S3 key
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     s3_key = f"resumes/raw/{user_id}_{timestamp}_{filename}"
-    
+
     try:
         s3.put_object(
             Bucket=AWS_S3_BUCKET,
@@ -71,7 +69,7 @@ async def upload_resume(
                 "uploaded_at": timestamp,
             },
         )
-        
+
         return {
             "success": True,
             "s3_key": s3_key,
@@ -91,19 +89,19 @@ async def upload_parsed_resume(
 ) -> dict:
     """
     Upload parsed resume JSON to S3.
-    
+
     Args:
         user_id: User's unique ID
         parsed_data: Parsed resume data as dictionary
-        
+
     Returns:
         dict with s3_key and url
     """
     s3 = get_s3_client()
-    
+
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     s3_key = f"resumes/parsed/{user_id}_{timestamp}.json"
-    
+
     try:
         s3.put_object(
             Bucket=AWS_S3_BUCKET,
@@ -115,7 +113,7 @@ async def upload_parsed_resume(
                 "parsed_at": timestamp,
             },
         )
-        
+
         return {
             "success": True,
             "s3_key": s3_key,
@@ -129,18 +127,18 @@ async def upload_parsed_resume(
         }
 
 
-async def download_resume(s3_key: str) -> Optional[bytes]:
+async def download_resume(s3_key: str) -> bytes | None:
     """
     Download a resume from S3.
-    
+
     Args:
         s3_key: S3 object key
-        
+
     Returns:
         File content as bytes, or None if not found
     """
     s3 = get_s3_client()
-    
+
     try:
         response = s3.get_object(
             Bucket=AWS_S3_BUCKET,
@@ -154,19 +152,19 @@ async def download_resume(s3_key: str) -> Optional[bytes]:
 async def get_presigned_url(
     s3_key: str,
     expiration: int = 3600,
-) -> Optional[str]:
+) -> str | None:
     """
     Generate a presigned URL for secure temporary access.
-    
+
     Args:
         s3_key: S3 object key
         expiration: URL expiration time in seconds (default: 1 hour)
-        
+
     Returns:
         Presigned URL or None if error
     """
     s3 = get_s3_client()
-    
+
     try:
         url = s3.generate_presigned_url(
             "get_object",
@@ -184,29 +182,31 @@ async def get_presigned_url(
 async def list_user_resumes(user_id: str) -> list[dict]:
     """
     List all resumes for a user.
-    
+
     Args:
         user_id: User's unique ID
-        
+
     Returns:
         List of resume metadata
     """
     s3 = get_s3_client()
-    
+
     try:
         response = s3.list_objects_v2(
             Bucket=AWS_S3_BUCKET,
             Prefix=f"resumes/raw/{user_id}_",
         )
-        
+
         resumes = []
         for obj in response.get("Contents", []):
-            resumes.append({
-                "s3_key": obj["Key"],
-                "size": obj["Size"],
-                "last_modified": obj["LastModified"].isoformat(),
-            })
-        
+            resumes.append(
+                {
+                    "s3_key": obj["Key"],
+                    "size": obj["Size"],
+                    "last_modified": obj["LastModified"].isoformat(),
+                }
+            )
+
         return resumes
     except ClientError:
         return []
@@ -215,15 +215,15 @@ async def list_user_resumes(user_id: str) -> list[dict]:
 async def delete_resume(s3_key: str) -> bool:
     """
     Delete a resume from S3.
-    
+
     Args:
         s3_key: S3 object key
-        
+
     Returns:
         True if deleted successfully
     """
     s3 = get_s3_client()
-    
+
     try:
         s3.delete_object(
             Bucket=AWS_S3_BUCKET,
@@ -238,6 +238,7 @@ async def delete_resume(s3_key: str) -> bool:
 # Cover Letter Operations
 # =============================================================================
 
+
 async def upload_cover_letter(
     user_id: str,
     job_id: str,
@@ -246,24 +247,24 @@ async def upload_cover_letter(
 ) -> dict:
     """
     Upload a generated cover letter.
-    
+
     Args:
         user_id: User's unique ID
         job_id: Job ID this cover letter is for
         content: Cover letter content
         format: File format (txt or pdf)
-        
+
     Returns:
         dict with s3_key and url
     """
     s3 = get_s3_client()
-    
+
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     s3_key = f"exports/cover_letters/{user_id}_{job_id}_{timestamp}.{format}"
-    
+
     content_type = "text/plain" if format == "txt" else "application/pdf"
     body = content if isinstance(content, bytes) else content.encode("utf-8")
-    
+
     try:
         s3.put_object(
             Bucket=AWS_S3_BUCKET,
@@ -276,7 +277,7 @@ async def upload_cover_letter(
                 "generated_at": timestamp,
             },
         )
-        
+
         return {
             "success": True,
             "s3_key": s3_key,
@@ -294,15 +295,16 @@ async def upload_cover_letter(
 # Utility Functions
 # =============================================================================
 
+
 def check_s3_connection() -> dict:
     """
     Check if S3 connection is working.
-    
+
     Returns:
         dict with connection status
     """
     s3 = get_s3_client()
-    
+
     try:
         s3.head_bucket(Bucket=AWS_S3_BUCKET)
         return {

@@ -4,11 +4,9 @@ Analytics Route
 User dashboard data and insights.
 """
 
-from typing import Optional
+from fastapi import APIRouter
 
-from fastapi import APIRouter, HTTPException
-
-from app.models import UserAnalytics, SystemMetrics
+from app.models import SystemMetrics, UserAnalytics
 
 router = APIRouter()
 
@@ -17,7 +15,7 @@ router = APIRouter()
 async def get_user_analytics(user_id: str):
     """
     Get comprehensive analytics for a user.
-    
+
     Includes:
     - Match statistics
     - Skill analysis
@@ -25,7 +23,7 @@ async def get_user_analytics(user_id: str):
     - Recommendations
     """
     # TODO: Fetch from database and compute analytics
-    
+
     # Return sample data for now
     return UserAnalytics(
         user_id=user_id,
@@ -61,11 +59,11 @@ async def get_user_analytics(user_id: str):
 async def get_system_metrics():
     """
     Get system-wide analytics.
-    
+
     For admin dashboard showing overall platform health.
     """
     # TODO: Fetch from database
-    
+
     return SystemMetrics(
         total_users=1250,
         active_users_today=87,
@@ -90,15 +88,15 @@ async def get_system_metrics():
 
 @router.get("/analytics/skills/trends")
 async def get_skill_trends(
-    skills: Optional[str] = None,  # Comma-separated list
+    skills: str | None = None,  # Comma-separated list
 ):
     """
     Get market demand trends for skills.
     """
     skill_list = skills.split(",") if skills else []
-    
+
     # TODO: Fetch from job market MCP server or database
-    
+
     return {
         "skills": skill_list or ["Python", "JavaScript", "Go"],
         "trends": [

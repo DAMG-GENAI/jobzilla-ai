@@ -5,7 +5,7 @@ Insert/upsert scraped jobs into Postgres in an idempotent way.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import psycopg2
@@ -22,7 +22,9 @@ def _get_db_conn_string() -> str:
     database_url = os.getenv("DATABASE_URL")
     if database_url:
         return (
-            database_url.replace("+asyncpg", "").replace("+psycopg2", "").replace("postgres://", "postgresql://")
+            database_url.replace("+asyncpg", "")
+            .replace("+psycopg2", "")
+            .replace("postgres://", "postgresql://")
         )
 
     host = os.getenv("DB_HOST", os.getenv("PGHOST", "localhost"))
@@ -37,7 +39,7 @@ def _get_db_conn_string() -> str:
 def _parse_scraped_at(value: Any) -> datetime:
     if isinstance(value, datetime):
         if value.tzinfo:
-            return value.astimezone(timezone.utc).replace(tzinfo=None)
+            return value.astimezone(UTC).replace(tzinfo=None)
         return value
 
     if not value:
@@ -47,7 +49,7 @@ def _parse_scraped_at(value: Any) -> datetime:
         try:
             parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
             if parsed.tzinfo:
-                return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+                return parsed.astimezone(UTC).replace(tzinfo=None)
             return parsed
         except ValueError:
             return datetime.utcnow()
@@ -69,7 +71,7 @@ def _normalize_jobs(jobs: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], i
 
         title = (job.get("title") or "Untitled Role").strip()[:500]
         company = (job.get("company") or "Unknown Company").strip()[:255]
-        location = (job.get("location") or None)
+        location = job.get("location") or None
         platform = (job.get("source_platform") or "unknown").strip()[:100]
 
         if not title:
@@ -190,7 +192,10 @@ def upsert_jobs(jobs: list[dict[str, Any]]) -> dict[str, int]:
                         updated += 1
             except Exception as upsert_error:
                 message = str(upsert_error).lower()
-                requires_fallback = "no unique or exclusion constraint matching the on conflict specification" in message
+                requires_fallback = (
+                    "no unique or exclusion constraint matching the on conflict specification"
+                    in message
+                )
                 if not requires_fallback:
                     raise
 
@@ -208,9 +213,15 @@ def upsert_jobs(jobs: list[dict[str, Any]]) -> dict[str, int]:
                             "SELECT source_url FROM jobs WHERE source_url = ANY(%s)",
                             (batch,),
                         )
-                        existing_urls.update(row[0] for row in fallback_cur.fetchall() if row[0])
+                        existing_urls.update(
+                            row[0] for row in fallback_cur.fetchall() if row[0]
+                        )
 
-                    new_jobs = [job for job in normalized_jobs if job["source_url"] not in existing_urls]
+                    new_jobs = [
+                        job
+                        for job in normalized_jobs
+                        if job["source_url"] not in existing_urls
+                    ]
                     for job in new_jobs:
                         fallback_cur.execute(fallback_insert_sql, job)
 

@@ -6,8 +6,9 @@ Aggregates skill demand trends from job postings.
 
 from datetime import datetime, timedelta
 
-from airflow import DAG
 from airflow.operators.python import PythonOperator
+
+from airflow import DAG
 
 default_args = {
     "owner": "killmatch",
@@ -31,7 +32,7 @@ dag = DAG(
 def analyze_trends(**context):
     """Analyze skill trends from job postings."""
     import httpx
-    
+
     try:
         response = httpx.get(
             "http://mcp-jobmarket:8001/tools/get_skill_demand_trends",
@@ -43,7 +44,7 @@ def analyze_trends(**context):
     except Exception as e:
         print(f"Error analyzing trends: {e}")
         trends = {}
-    
+
     context["ti"].xcom_push(key="trends", value=trends)
     return bool(trends)
 
@@ -51,9 +52,9 @@ def analyze_trends(**context):
 def store_trends(**context):
     """Store trend data in database."""
     import httpx
-    
+
     trends = context["ti"].xcom_pull(key="trends")
-    
+
     try:
         response = httpx.post(
             "http://backend:8000/api/v1/analytics/trends",

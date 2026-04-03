@@ -10,7 +10,7 @@ import streamlit as st
 def score_gauge(score: float, label: str = "Match Score") -> None:
     """
     Display a circular score gauge.
-    
+
     Args:
         score: Score from 0-100
         label: Label to display below the score
@@ -28,7 +28,7 @@ def score_gauge(score: float, label: str = "Match Score") -> None:
     else:
         color = "#ef4444"  # Red
         status = "Poor"
-    
+
     # SVG circle gauge
     svg = f"""
     <div style="text-align: center; padding: 20px;">
@@ -79,14 +79,14 @@ def score_gauge(score: float, label: str = "Match Score") -> None:
         <p style="color: #9ca3af; margin-top: 10px;">{label}</p>
     </div>
     """
-    
+
     st.markdown(svg, unsafe_allow_html=True)
 
 
 def mini_score(score: float) -> str:
     """
     Get a mini inline score badge.
-    
+
     Returns HTML string for inline display.
     """
     if score >= 80:
@@ -98,7 +98,7 @@ def mini_score(score: float) -> str:
     else:
         bg_color = "rgba(239, 68, 68, 0.2)"
         text_color = "#ef4444"
-    
+
     return f"""
     <span style="
         background: {bg_color};

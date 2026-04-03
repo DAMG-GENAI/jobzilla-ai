@@ -5,14 +5,12 @@ This server provides tools for job market intelligence,
 including job search, company research, and salary insights via HTTP API.
 """
 
-import json
 import os
-from typing import Any, Optional
 
 import httpx
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import uvicorn
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -31,10 +29,11 @@ PORT = int(os.getenv("PORT", 8002))
 # Request/Response Models
 # =============================================================================
 
+
 class JobSearchRequest(BaseModel):
     query: str
-    location: Optional[str] = None
-    experience_level: Optional[str] = None
+    location: str | None = None
+    experience_level: str | None = None
     limit: int = 10
 
 
@@ -45,7 +44,7 @@ class CompanyRequest(BaseModel):
 class SalaryRequest(BaseModel):
     role: str
     location: str
-    experience_years: Optional[int] = None
+    experience_years: int | None = None
 
 
 class SkillTrendsRequest(BaseModel):
@@ -56,10 +55,15 @@ class SkillTrendsRequest(BaseModel):
 # API Endpoints
 # =============================================================================
 
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "service": "job-market", "tavily_configured": bool(TAVILY_API_KEY)}
+    return {
+        "status": "healthy",
+        "service": "job-market",
+        "tavily_configured": bool(TAVILY_API_KEY),
+    }
 
 
 @app.post("/tools/search_jobs")
@@ -67,7 +71,7 @@ async def search_jobs(request: JobSearchRequest):
     """Search for job listings using Tavily API."""
     if not TAVILY_API_KEY:
         raise HTTPException(status_code=500, detail="TAVILY_API_KEY not configured")
-    
+
     try:
         # Build search query
         search_query = f"{request.query} job listings"
@@ -75,7 +79,7 @@ async def search_jobs(request: JobSearchRequest):
             search_query += f" {request.location}"
         if request.experience_level:
             search_query += f" {request.experience_level} level"
-        
+
         # Search using Tavily
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -99,17 +103,19 @@ async def search_jobs(request: JobSearchRequest):
             )
             response.raise_for_status()
             data = response.json()
-        
+
         # Parse results
         jobs = []
         for result in data.get("results", []):
-            jobs.append({
-                "title": result.get("title", "Unknown Title"),
-                "url": result.get("url", ""),
-                "snippet": result.get("content", ""),
-                "source": _extract_source(result.get("url", "")),
-            })
-        
+            jobs.append(
+                {
+                    "title": result.get("title", "Unknown Title"),
+                    "url": result.get("url", ""),
+                    "snippet": result.get("content", ""),
+                    "source": _extract_source(result.get("url", "")),
+                }
+            )
+
         return {
             "query": request.query,
             "location": request.location,
@@ -127,7 +133,7 @@ async def get_company_intel(request: CompanyRequest):
     """Get intelligence about a company including culture, reviews, and recent news."""
     if not TAVILY_API_KEY:
         raise HTTPException(status_code=500, detail="TAVILY_API_KEY not configured")
-    
+
     try:
         async with httpx.AsyncClient() as client:
             # Search for company info
@@ -150,7 +156,7 @@ async def get_company_intel(request: CompanyRequest):
             )
             response.raise_for_status()
             culture_data = response.json()
-            
+
             # Search for recent news
             news_response = await client.post(
                 "https://api.tavily.com/search",
@@ -164,7 +170,7 @@ async def get_company_intel(request: CompanyRequest):
             )
             news_response.raise_for_status()
             news_data = news_response.json()
-        
+
         # Compile results
         culture_insights = [
             {
@@ -175,7 +181,7 @@ async def get_company_intel(request: CompanyRequest):
             }
             for r in culture_data.get("results", [])[:5]
         ]
-        
+
         recent_news = [
             {
                 "title": r.get("title", ""),
@@ -184,7 +190,7 @@ async def get_company_intel(request: CompanyRequest):
             }
             for r in news_data.get("results", [])[:3]
         ]
-        
+
         return {
             "company": request.company_name,
             "culture_insights": culture_insights,
@@ -201,7 +207,7 @@ async def get_salary_benchmark(request: SalaryRequest):
     """Get salary benchmarks for a role in a specific location."""
     if not TAVILY_API_KEY:
         raise HTTPException(status_code=500, detail="TAVILY_API_KEY not configured")
-    
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -224,17 +230,19 @@ async def get_salary_benchmark(request: SalaryRequest):
             )
             response.raise_for_status()
             data = response.json()
-        
+
         # Extract salary info from results
         salary_sources = []
         for result in data.get("results", [])[:5]:
-            salary_sources.append({
-                "title": result.get("title", ""),
-                "snippet": result.get("content", "")[:300],
-                "source": _extract_source(result.get("url", "")),
-                "url": result.get("url", ""),
-            })
-        
+            salary_sources.append(
+                {
+                    "title": result.get("title", ""),
+                    "snippet": result.get("content", "")[:300],
+                    "source": _extract_source(result.get("url", "")),
+                    "url": result.get("url", ""),
+                }
+            )
+
         return {
             "role": request.role,
             "location": request.location,
@@ -253,10 +261,10 @@ async def get_skill_trends(request: SkillTrendsRequest):
     """Get demand trends for specific skills."""
     if not TAVILY_API_KEY:
         raise HTTPException(status_code=500, detail="TAVILY_API_KEY not configured")
-    
+
     try:
         trends = {}
-        
+
         async with httpx.AsyncClient() as client:
             for skill in request.skills[:5]:  # Limit to 5 skills
                 response = await client.post(
@@ -271,7 +279,7 @@ async def get_skill_trends(request: SkillTrendsRequest):
                 )
                 response.raise_for_status()
                 data = response.json()
-                
+
                 trends[skill] = {
                     "sources": [
                         {
@@ -281,7 +289,7 @@ async def get_skill_trends(request: SkillTrendsRequest):
                         for r in data.get("results", [])[:2]
                     ],
                 }
-        
+
         return {
             "skills_analyzed": request.skills,
             "trends": trends,

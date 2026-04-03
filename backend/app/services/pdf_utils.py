@@ -16,10 +16,10 @@ from fpdf import FPDF
 
 
 class ResumePDF(FPDF):
-    LM = 15          # left margin
-    RM = 15          # right margin
-    TM = 12          # top margin
-    PW = 210         # A4 width mm
+    LM = 15  # left margin
+    RM = 15  # right margin
+    TM = 12  # top margin
+    PW = 210  # A4 width mm
 
     def __init__(self):
         super().__init__()
@@ -74,7 +74,9 @@ class ResumePDF(FPDF):
         self.line(self.LM, y, self.PW - self.RM, y)
         self.ln(1.5)
 
-    def line_with_right_date(self, left: str, right: str, bold: bool = True, italic: bool = False):
+    def line_with_right_date(
+        self, left: str, right: str, bold: bool = True, italic: bool = False
+    ):
         """Render left text with right-aligned date on the same line."""
         style = ""
         if bold and italic:
@@ -95,7 +97,9 @@ class ResumePDF(FPDF):
         self.set_font("Times", "", 11)
         self.cell(date_w, 5, self._s(right), ln=True, align="R")
 
-    def sub_line(self, text: str, bold: bool = False, italic: bool = False, indent: float = 0):
+    def sub_line(
+        self, text: str, bold: bool = False, italic: bool = False, indent: float = 0
+    ):
         style = ""
         if bold and italic:
             style = "BI"
@@ -130,11 +134,14 @@ class ResumePDF(FPDF):
 
 # ── Markdown stripping helpers ─────────────────────────────────────────
 
+
 def _strip_all(text: str) -> str:
     """Remove all Markdown formatting."""
-    text = re.sub(r"\*\*\*(.+?)\*\*\*", r"\1", text)   # bold+italic
-    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)       # bold
-    text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"\1", text)  # italic (single *)
+    text = re.sub(r"\*\*\*(.+?)\*\*\*", r"\1", text)  # bold+italic
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)  # bold
+    text = re.sub(
+        r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"\1", text
+    )  # italic (single *)
     text = re.sub(r"__(.+?)__", r"\1", text)
     text = re.sub(r"(?<!_)_(?!_)(.+?)(?<!_)_(?!_)", r"\1", text)
     text = re.sub(r"`(.+?)`", r"\1", text)
@@ -153,6 +160,7 @@ def _has_italic(text: str) -> bool:
 
 
 # ── Main converter ─────────────────────────────────────────────────────
+
 
 def markdown_to_pdf(md_text: str) -> bytes:
     """Convert resume markdown to PDF bytes."""

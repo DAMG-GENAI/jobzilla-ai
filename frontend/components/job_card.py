@@ -4,41 +4,44 @@ Job Card Component
 Reusable card for displaying job listings.
 """
 
+from typing import Any
+
 import streamlit as st
-from typing import Dict, Any, Optional
 
 
 def job_card(
-    job: Dict[str, Any],
-    score: Optional[float] = None,
-    on_view: Optional[callable] = None,
-    on_save: Optional[callable] = None,
+    job: dict[str, Any],
+    score: float | None = None,
+    on_view: callable | None = None,
+    on_save: callable | None = None,
 ) -> None:
     """
     Display a job listing card.
-    
+
     Args:
         job: Job data dictionary
         score: Optional match score
         on_view: Callback when view button clicked
         on_save: Callback when save button clicked
     """
-    
+
     title = job.get("title", "Unknown Position")
     company = job.get("company", "Unknown Company")
     location = job.get("location", "Not specified")
     job_type = job.get("job_type", "Full-time")
     remote = job.get("remote_policy", "On-site")
-    
+
     # Salary formatting
     salary = job.get("salary", {})
     if salary:
         salary_min = salary.get("min_salary", 0)
         salary_max = salary.get("max_salary", 0)
-        salary_text = f"${salary_min:,} - ${salary_max:,}" if salary_min else "Not disclosed"
+        salary_text = (
+            f"${salary_min:,} - ${salary_max:,}" if salary_min else "Not disclosed"
+        )
     else:
         salary_text = "Not disclosed"
-    
+
     # Score color
     if score:
         if score >= 80:
@@ -50,9 +53,10 @@ def job_card(
         else:
             score_color = "#ef4444"
             score_bg = "rgba(239, 68, 68, 0.1)"
-    
+
     # Card HTML
-    st.markdown(f"""
+    st.markdown(
+        f"""
     <div style="
         background: linear-gradient(145deg, #1a1a2e, #16213e);
         border: 1px solid rgba(99, 102, 241, 0.2);
@@ -86,8 +90,10 @@ def job_card(
             <span style="color: #6b7280;">💰 {salary_text}</span>
         </div>
     </div>
-    """, unsafe_allow_html=True)
-    
+    """,
+        unsafe_allow_html=True,
+    )
+
     # Action buttons
     col1, col2, col3 = st.columns([1, 1, 4])
     with col1:
@@ -109,14 +115,14 @@ def job_card_compact(
     """
     Display a compact job card for lists.
     """
-    
+
     if score >= 80:
         score_color = "#10b981"
     elif score >= 60:
         score_color = "#f59e0b"
     else:
         score_color = "#ef4444"
-    
+
     urgency_badge = ""
     if urgency:
         urgency_colors = {
@@ -127,8 +133,9 @@ def job_card_compact(
         }
         color = urgency_colors.get(urgency, "#6b7280")
         urgency_badge = f'<span style="background: {color}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">{urgency}</span>'
-    
-    st.markdown(f"""
+
+    st.markdown(
+        f"""
     <div style="
         background: rgba(255, 255, 255, 0.03);
         border-radius: 8px;
@@ -145,4 +152,6 @@ def job_card_compact(
         </div>
         <span style="color: {score_color}; font-weight: 600;">{score:.0f}%</span>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )

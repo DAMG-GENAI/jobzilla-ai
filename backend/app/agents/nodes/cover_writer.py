@@ -4,7 +4,7 @@ Cover Letter Writer Node
 Generates personalized, debate-informed cover letters.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from langchain_openai import ChatOpenAI
 
@@ -14,10 +14,10 @@ from app.core.config import settings
 from app.models import JobListing, ResumeData
 
 
-async def cover_writer_node(state: AgentState) -> Dict[str, Any]:
+async def cover_writer_node(state: AgentState) -> dict[str, Any]:
     """
     Generate a personalized cover letter.
-    
+
     Uses insights from the debate to:
     - Highlight the strongest matching points
     - Proactively address concerns
@@ -25,58 +25,61 @@ async def cover_writer_node(state: AgentState) -> Dict[str, Any]:
     """
     resume = state["resume_data"]
     job = state["job_data"]
-    verdict = state.get("final_verdict")
-    
+    state.get("final_verdict")
+
     # Get debate insights
     coach_highlights = []
     recruiter_concerns = []
-    
+
     for round in state.get("debate_rounds", []):
         for arg in round.coach_arguments[:2]:
             coach_highlights.append(arg.point)
         for arg in round.recruiter_arguments[:2]:
             recruiter_concerns.append(arg.point)
-    
+
     cover_letter = await generate_cover_letter(
         resume=resume,
         job=job,
         recruiter_concerns=recruiter_concerns,
         coach_highlights=coach_highlights,
     )
-    
+
     return {
         "cover_letter": cover_letter.get("cover_letter", ""),
-        "messages": state.get("messages", []) + [
-            {"role": "cover_writer", "content": "Generated personalized cover letter"}
-        ],
+        "messages": state.get("messages", [])
+        + [{"role": "cover_writer", "content": "Generated personalized cover letter"}],
     }
 
 
 async def generate_cover_letter(
     resume: ResumeData,
     job: JobListing,
-    recruiter_concerns: List[str] = None,
-    coach_highlights: List[str] = None,
+    recruiter_concerns: list[str] = None,
+    coach_highlights: list[str] = None,
     tone: str = "professional",
     length: str = "medium",
-    focus_areas: List[str] = None,
-) -> Dict[str, Any]:
+    focus_areas: list[str] = None,
+) -> dict[str, Any]:
     """
     Generate a cover letter using LLM.
-    
+
     This function is also called directly by the cover letter API endpoint.
     """
     recruiter_concerns = recruiter_concerns or []
     coach_highlights = coach_highlights or []
     focus_areas = focus_areas or []
-    
+
     # Build prompt
     experience_summary = []
     for exp in resume.experience[:3]:
         experience_summary.append(f"- {exp.title} at {exp.company}")
-    
-    skills_summary = ", ".join([s.name for s in resume.skills[:10]]) if resume.skills else "Various skills"
-    
+
+    skills_summary = (
+        ", ".join([s.name for s in resume.skills[:10]])
+        if resume.skills
+        else "Various skills"
+    )
+
     prompt = f"""{WRITER_SYSTEM_PROMPT}
 
 ## Candidate Information:
@@ -110,24 +113,29 @@ Write the cover letter now:"""
     cover_letter = ""
     key_points = []
     suggestions = []
-    
+
     if settings.openai_api_key:
         llm = ChatOpenAI(
             model=settings.openai_model,
             api_key=settings.openai_api_key,
             temperature=0.8,  # Higher creativity for writing
         )
-        
-        response = await llm.ainvoke([
-            {"role": "user", "content": prompt},
-        ])
-        
+
+        response = await llm.ainvoke(
+            [
+                {"role": "user", "content": prompt},
+            ]
+        )
+
         cover_letter = response.content
-        
+
         # Extract key points addressed (simple heuristic)
         if coach_highlights:
             for highlight in coach_highlights[:3]:
-                if any(word.lower() in cover_letter.lower() for word in highlight.split()[:3]):
+                if any(
+                    word.lower() in cover_letter.lower()
+                    for word in highlight.split()[:3]
+                ):
                     key_points.append(highlight)
     else:
         # Fallback template
@@ -143,13 +151,13 @@ I am excited about the opportunity to bring my skills to {job.company} and contr
 
 Best regards,
 {resume.name}"""
-        
+
         suggestions = [
             "Add specific achievements with metrics",
             "Research the company for personalization",
             "Configure OpenAI API key for AI-generated letters",
         ]
-    
+
     return {
         "cover_letter": cover_letter,
         "key_points": key_points,

@@ -33,11 +33,17 @@ Provide your arguments as a structured list. For each strength:
 Remember: Your job is to advocate for the candidate. The Recruiter agent will present concerns. Together, you help the Judge make a balanced decision."""
 
 
-def get_coach_prompt(resume_summary: str, job_summary: str, skills: list, job_requirements: list, strengths: list) -> str:
+def get_coach_prompt(
+    resume_summary: str,
+    job_summary: str,
+    skills: list,
+    job_requirements: list,
+    strengths: list,
+) -> str:
     """Generate the coach evaluation prompt."""
-    
+
     matching = set(skills) & set(job_requirements)
-    
+
     return f"""{COACH_SYSTEM_PROMPT}
 
 ## Candidate Profile:

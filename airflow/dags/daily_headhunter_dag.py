@@ -6,8 +6,9 @@ Runs every morning to match users with new jobs and store recommendations.
 
 from datetime import datetime, timedelta
 
-from airflow import DAG
 from airflow.operators.python import PythonOperator
+
+from airflow import DAG
 
 default_args = {
     "owner": "killmatch",
@@ -31,7 +32,7 @@ dag = DAG(
 def get_active_users(**context):
     """Fetch all active users with profiles."""
     import httpx
-    
+
     try:
         response = httpx.get(
             "http://backend:8000/api/v1/users/active",
@@ -42,7 +43,7 @@ def get_active_users(**context):
     except Exception as e:
         print(f"Error fetching users: {e}")
         users = []
-    
+
     context["ti"].xcom_push(key="active_users", value=users)
     return len(users)
 
@@ -50,9 +51,9 @@ def get_active_users(**context):
 def run_matching(**context):
     """Run agent pipeline for each user."""
     import httpx
-    
+
     users = context["ti"].xcom_pull(key="active_users")
-    
+
     results = []
     for user in users:
         try:
@@ -62,13 +63,15 @@ def run_matching(**context):
                 timeout=180,
             )
             if response.status_code == 200:
-                results.append({
-                    "user_id": user["id"],
-                    "matches": response.json().get("matches", []),
-                })
+                results.append(
+                    {
+                        "user_id": user["id"],
+                        "matches": response.json().get("matches", []),
+                    }
+                )
         except Exception as e:
             print(f"Error matching user {user['id']}: {e}")
-    
+
     context["ti"].xcom_push(key="match_results", value=results)
     return len(results)
 
@@ -76,9 +79,9 @@ def run_matching(**context):
 def store_recommendations(**context):
     """Store recommendations in database."""
     import httpx
-    
+
     results = context["ti"].xcom_pull(key="match_results")
-    
+
     try:
         response = httpx.post(
             "http://backend:8000/api/v1/recommendations/batch",
@@ -95,9 +98,9 @@ def store_recommendations(**context):
 def send_notifications(**context):
     """Send notifications to users with new matches."""
     import httpx
-    
+
     results = context["ti"].xcom_pull(key="match_results")
-    
+
     notifications_sent = 0
     for result in results:
         if len(result.get("matches", [])) > 0:
@@ -114,7 +117,7 @@ def send_notifications(**context):
                 notifications_sent += 1
             except Exception:
                 pass
-    
+
     return notifications_sent
 
 

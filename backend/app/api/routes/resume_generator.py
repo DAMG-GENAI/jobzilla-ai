@@ -11,7 +11,6 @@ Accept a master resume PDF + job description, then:
 import base64
 import json
 import re
-from typing import Optional
 
 import google.generativeai as genai
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -27,22 +26,22 @@ router = APIRouter()
 
 
 class ATSScore(BaseModel):
-    overall: int                   # 0-100
-    keyword_match: int             # % of JD keywords found in resume
+    overall: int  # 0-100
+    keyword_match: int  # % of JD keywords found in resume
     matched_keywords: list[str]
     missing_keywords: list[str]
     feedback: list[str]
 
 
 class GeminiReview(BaseModel):
-    ats_score: int                 # 0-100, Gemini's holistic ATS assessment
-    bullet_quality_score: int      # 0-100, strength of action verbs + metrics
-    jd_alignment_score: int        # 0-100, semantic match with job description
-    strengths: list[str]           # What the resume does well
-    weaknesses: list[str]          # Issues found
-    suggestions: list[str]         # Specific improvements
-    verdict: str                   # "Pass" | "Needs Work" | "Fail"
-    skipped: bool = False          # True if Gemini key not configured
+    ats_score: int  # 0-100, Gemini's holistic ATS assessment
+    bullet_quality_score: int  # 0-100, strength of action verbs + metrics
+    jd_alignment_score: int  # 0-100, semantic match with job description
+    strengths: list[str]  # What the resume does well
+    weaknesses: list[str]  # Issues found
+    suggestions: list[str]  # Specific improvements
+    verdict: str  # "Pass" | "Needs Work" | "Fail"
+    skipped: bool = False  # True if Gemini key not configured
 
 
 class ResumeGeneratorResponse(BaseModel):
@@ -53,7 +52,7 @@ class ResumeGeneratorResponse(BaseModel):
     pdf_base64: str
     original_ats_score: ATSScore
     tailored_ats_score: ATSScore
-    changes_made: list[str]        # Summary of changes from original
+    changes_made: list[str]  # Summary of changes from original
     gemini_review: GeminiReview
 
 
@@ -63,118 +62,382 @@ class ResumeGeneratorResponse(BaseModel):
 # We ONLY count these — no generic English words.
 _TECH_TERMS = {
     # Languages
-    "python", "java", "javascript", "typescript", "golang", "ruby", "scala",
-    "rust", "swift", "kotlin", "perl", "bash", "shell", "c++", "c#",
-    "html", "html5", "css", "css3", "sass", "less", "php", "r",
-    "sql", "nosql", "plsql", "t-sql", "matlab", "lua", "dart", "haskell",
+    "python",
+    "java",
+    "javascript",
+    "typescript",
+    "golang",
+    "ruby",
+    "scala",
+    "rust",
+    "swift",
+    "kotlin",
+    "perl",
+    "bash",
+    "shell",
+    "c++",
+    "c#",
+    "html",
+    "html5",
+    "css",
+    "css3",
+    "sass",
+    "less",
+    "php",
+    "r",
+    "sql",
+    "nosql",
+    "plsql",
+    "t-sql",
+    "matlab",
+    "lua",
+    "dart",
+    "haskell",
     # Frontend
-    "react", "angular", "vue", "vue.js", "next.js", "nuxt", "svelte",
-    "redux", "webpack", "vite", "tailwind", "tailwindcss", "bootstrap",
-    "jquery", "gatsby", "remix", "astro", "storybook",
+    "react",
+    "angular",
+    "vue",
+    "vue.js",
+    "next.js",
+    "nuxt",
+    "svelte",
+    "redux",
+    "webpack",
+    "vite",
+    "tailwind",
+    "tailwindcss",
+    "bootstrap",
+    "jquery",
+    "gatsby",
+    "remix",
+    "astro",
+    "storybook",
     # Backend
-    "node.js", "express", "django", "flask", "fastapi", "spring",
-    "spring-boot", "rails", "laravel", ".net", "asp.net", "nestjs",
-    "gin", "fiber", "actix", "rocket", "sinatra",
+    "node.js",
+    "express",
+    "django",
+    "flask",
+    "fastapi",
+    "spring",
+    "spring-boot",
+    "rails",
+    "laravel",
+    ".net",
+    "asp.net",
+    "nestjs",
+    "gin",
+    "fiber",
+    "actix",
+    "rocket",
+    "sinatra",
     # Data / ML / AI
-    "tensorflow", "pytorch", "keras", "scikit-learn", "pandas", "numpy",
-    "scipy", "matplotlib", "seaborn", "plotly", "jupyter", "notebook",
-    "spark", "pyspark", "hadoop", "hive", "flink", "airflow", "dbt",
-    "databricks", "snowflake", "bigquery", "redshift", "glue", "emr",
-    "sagemaker", "mlflow", "kubeflow", "ray", "dask", "polars",
-    "nlp", "llm", "bert", "gpt", "transformer", "rag", "langchain",
-    "huggingface", "opencv", "yolo", "cnn", "rnn", "lstm", "gan",
-    "machine-learning", "deep-learning", "computer-vision",
-    "data-engineering", "data-science", "data-analytics", "etl",
-    "feature-engineering", "model-training", "model-deployment",
+    "tensorflow",
+    "pytorch",
+    "keras",
+    "scikit-learn",
+    "pandas",
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "seaborn",
+    "plotly",
+    "jupyter",
+    "notebook",
+    "spark",
+    "pyspark",
+    "hadoop",
+    "hive",
+    "flink",
+    "airflow",
+    "dbt",
+    "databricks",
+    "snowflake",
+    "bigquery",
+    "redshift",
+    "glue",
+    "emr",
+    "sagemaker",
+    "mlflow",
+    "kubeflow",
+    "ray",
+    "dask",
+    "polars",
+    "nlp",
+    "llm",
+    "bert",
+    "gpt",
+    "transformer",
+    "rag",
+    "langchain",
+    "huggingface",
+    "opencv",
+    "yolo",
+    "cnn",
+    "rnn",
+    "lstm",
+    "gan",
+    "machine-learning",
+    "deep-learning",
+    "computer-vision",
+    "data-engineering",
+    "data-science",
+    "data-analytics",
+    "etl",
+    "feature-engineering",
+    "model-training",
+    "model-deployment",
     # Cloud
-    "aws", "azure", "gcp", "heroku", "vercel", "netlify", "digitalocean",
-    "lambda", "ec2", "s3", "ecs", "eks", "fargate", "cloudformation",
-    "cloudwatch", "iam", "vpc", "route53", "sqs", "sns", "kinesis",
-    "step-functions", "api-gateway", "dynamodb", "rds", "aurora",
-    "cosmos-db", "blob-storage", "cloud-functions", "pub/sub",
+    "aws",
+    "azure",
+    "gcp",
+    "heroku",
+    "vercel",
+    "netlify",
+    "digitalocean",
+    "lambda",
+    "ec2",
+    "s3",
+    "ecs",
+    "eks",
+    "fargate",
+    "cloudformation",
+    "cloudwatch",
+    "iam",
+    "vpc",
+    "route53",
+    "sqs",
+    "sns",
+    "kinesis",
+    "step-functions",
+    "api-gateway",
+    "dynamodb",
+    "rds",
+    "aurora",
+    "cosmos-db",
+    "blob-storage",
+    "cloud-functions",
+    "pub/sub",
     # DevOps / CI-CD
-    "docker", "kubernetes", "k8s", "terraform", "ansible", "puppet",
-    "jenkins", "github-actions", "gitlab-ci", "circleci", "travis",
-    "ci/cd", "helm", "istio", "argocd", "prometheus", "grafana",
-    "datadog", "splunk", "elk", "logstash", "kibana", "nagios",
-    "nginx", "apache", "linux", "unix", "centos", "ubuntu",
+    "docker",
+    "kubernetes",
+    "k8s",
+    "terraform",
+    "ansible",
+    "puppet",
+    "jenkins",
+    "github-actions",
+    "gitlab-ci",
+    "circleci",
+    "travis",
+    "ci/cd",
+    "helm",
+    "istio",
+    "argocd",
+    "prometheus",
+    "grafana",
+    "datadog",
+    "splunk",
+    "elk",
+    "logstash",
+    "kibana",
+    "nagios",
+    "nginx",
+    "apache",
+    "linux",
+    "unix",
+    "centos",
+    "ubuntu",
     # Databases
-    "mysql", "postgresql", "postgres", "mongodb", "redis", "elasticsearch",
-    "cassandra", "sqlite", "oracle", "mssql", "neo4j", "couchdb",
-    "influxdb", "timescaledb", "cockroachdb", "mariadb", "memcached",
-    "firebase", "firestore", "supabase", "pinecone", "weaviate", "milvus",
+    "mysql",
+    "postgresql",
+    "postgres",
+    "mongodb",
+    "redis",
+    "elasticsearch",
+    "cassandra",
+    "sqlite",
+    "oracle",
+    "mssql",
+    "neo4j",
+    "couchdb",
+    "influxdb",
+    "timescaledb",
+    "cockroachdb",
+    "mariadb",
+    "memcached",
+    "firebase",
+    "firestore",
+    "supabase",
+    "pinecone",
+    "weaviate",
+    "milvus",
     # Tools
-    "git", "github", "gitlab", "bitbucket", "jira", "confluence",
-    "postman", "swagger", "openapi", "figma", "slack", "trello",
-    "notion", "tableau", "powerbi", "power-bi", "looker", "metabase",
-    "excel", "vscode",
+    "git",
+    "github",
+    "gitlab",
+    "bitbucket",
+    "jira",
+    "confluence",
+    "postman",
+    "swagger",
+    "openapi",
+    "figma",
+    "slack",
+    "trello",
+    "notion",
+    "tableau",
+    "powerbi",
+    "power-bi",
+    "looker",
+    "metabase",
+    "excel",
+    "vscode",
     # Messaging / Streaming
-    "kafka", "rabbitmq", "celery", "redis-queue", "zeromq", "nats",
-    "pulsar", "kinesis", "eventbridge",
+    "kafka",
+    "rabbitmq",
+    "celery",
+    "redis-queue",
+    "zeromq",
+    "nats",
+    "pulsar",
+    "eventbridge",
     # Testing
-    "jest", "mocha", "pytest", "junit", "selenium", "cypress",
-    "playwright", "testng", "unittest", "rspec", "phpunit",
+    "jest",
+    "mocha",
+    "pytest",
+    "junit",
+    "selenium",
+    "cypress",
+    "playwright",
+    "testng",
+    "unittest",
+    "rspec",
+    "phpunit",
     # Concepts (common JD technical terms)
-    "api", "rest", "restful", "graphql", "grpc", "websocket",
-    "microservices", "monolith", "serverless", "event-driven",
-    "oauth", "jwt", "sso", "saml", "ldap",
-    "agile", "scrum", "kanban", "devops", "devsecops", "sre",
-    "sdlc", "stlc", "tdd", "bdd", "ci/cd",
-    "oop", "functional", "design-patterns", "solid", "mvc", "mvvm",
-    "crud", "orm", "acid", "cap",
-    "data-modeling", "data-warehouse", "data-lake", "data-pipeline",
-    "data-visualization", "reporting", "dashboard", "analytics",
-    "automation", "scripting", "infrastructure", "monitoring",
-    "security", "encryption", "authentication", "authorization",
-    "distributed", "scalable", "high-availability", "fault-tolerant",
-    "cache", "caching", "load-balancer", "cdn",
-    "version-control", "code-review", "pair-programming",
-    "full-stack", "frontend", "backend", "fullstack",
+    "api",
+    "rest",
+    "restful",
+    "graphql",
+    "grpc",
+    "websocket",
+    "microservices",
+    "monolith",
+    "serverless",
+    "event-driven",
+    "oauth",
+    "jwt",
+    "sso",
+    "saml",
+    "ldap",
+    "agile",
+    "scrum",
+    "kanban",
+    "devops",
+    "devsecops",
+    "sre",
+    "sdlc",
+    "stlc",
+    "tdd",
+    "bdd",
+    "oop",
+    "functional",
+    "design-patterns",
+    "solid",
+    "mvc",
+    "mvvm",
+    "crud",
+    "orm",
+    "acid",
+    "cap",
+    "data-modeling",
+    "data-warehouse",
+    "data-lake",
+    "data-pipeline",
+    "data-visualization",
+    "reporting",
+    "dashboard",
+    "analytics",
+    "automation",
+    "scripting",
+    "infrastructure",
+    "monitoring",
+    "security",
+    "encryption",
+    "authentication",
+    "authorization",
+    "distributed",
+    "scalable",
+    "high-availability",
+    "fault-tolerant",
+    "cache",
+    "caching",
+    "load-balancer",
+    "cdn",
+    "version-control",
+    "code-review",
+    "pair-programming",
+    "full-stack",
+    "frontend",
+    "backend",
+    "fullstack",
 }
 
 # Also match these patterns dynamically from the JD
-_TECH_PATTERNS = re.compile(
-    r"""(?ix)
+_TECH_PATTERNS = re.compile(r"""(?ix)
     [A-Z]{2,6}              # Acronyms: AWS, GCP, SQL, API, ETL
     |[A-Z][a-z]+\.js        # Node.js, Vue.js, Next.js
     |[A-Z][a-z]+(?:DB|ML|AI|QL|MQ)  # MongoDB, GraphQL, RabbitMQ
-    """
-)
+    """)
 
 
 def _extract_keywords(text: str) -> set[str]:
     """Extract ONLY technical/tool keywords from text."""
     text_lower = text.lower()
-    
+
     # 1. Match known tech terms
     keywords = set()
     for term in _TECH_TERMS:
         # Check for the term as a whole word
-        pattern = r'\b' + re.escape(term) + r'\b'
+        pattern = r"\b" + re.escape(term) + r"\b"
         if re.search(pattern, text_lower):
             keywords.add(term)
-    
+
     # 2. Match acronyms (2-6 uppercase letters like AWS, GCP, SQL)
-    acronyms = re.findall(r'\b([A-Z]{2,6})\b', text)
+    acronyms = re.findall(r"\b([A-Z]{2,6})\b", text)
     for acr in acronyms:
-        if len(acr) >= 2 and acr.lower() not in {"the", "and", "for", "are", "you", "our", "may", "can"}:
+        if len(acr) >= 2 and acr.lower() not in {
+            "the",
+            "and",
+            "for",
+            "are",
+            "you",
+            "our",
+            "may",
+            "can",
+        }:
             keywords.add(acr.lower())
-    
+
     # 3. Match tech-looking terms (with dots, hashes, plusses: C++, C#, Node.js)
-    tech_tokens = re.findall(r'\b[A-Za-z][A-Za-z0-9]*[.+#][A-Za-z0-9.]*\b', text)
+    tech_tokens = re.findall(r"\b[A-Za-z][A-Za-z0-9]*[.+#][A-Za-z0-9.]*\b", text)
     for tt in tech_tokens:
         keywords.add(tt.lower())
-    
+
     return keywords
 
 
-def compute_ats_score(resume_text: str, job_description: str, job_title: str = "") -> ATSScore:
+def compute_ats_score(
+    resume_text: str, job_description: str, job_title: str = ""
+) -> ATSScore:
     """Compute ATS compatibility score."""
     if not job_description.strip():
         return ATSScore(
-            overall=0, keyword_match=0,
-            matched_keywords=[], missing_keywords=[],
-            feedback=["No job description provided — ATS score requires a job description."],
+            overall=0,
+            keyword_match=0,
+            matched_keywords=[],
+            missing_keywords=[],
+            feedback=[
+                "No job description provided — ATS score requires a job description."
+            ],
         )
 
     jd_keywords = _extract_keywords(job_description + " " + job_title)
@@ -204,7 +467,9 @@ def compute_ats_score(resume_text: str, job_description: str, job_title: str = "
     elif overall >= 60:
         feedback.append("⚠️ Good alignment but some key terms are missing.")
     else:
-        feedback.append("❌ Low keyword coverage — consider adding more role-specific terms.")
+        feedback.append(
+            "❌ Low keyword coverage — consider adding more role-specific terms."
+        )
 
     if missing[:5]:
         feedback.append(f"Missing terms to consider: {', '.join(missing[:8])}.")
@@ -217,21 +482,31 @@ def compute_ats_score(resume_text: str, job_description: str, job_title: str = "
         feedback.append("❌ Resume needs significant tailoring to pass ATS scanners.")
 
     return ATSScore(
-        overall=overall, keyword_match=kw_pct,
-        matched_keywords=matched[:20], missing_keywords=missing[:15],
+        overall=overall,
+        keyword_match=kw_pct,
+        matched_keywords=matched[:20],
+        missing_keywords=missing[:15],
         feedback=feedback,
     )
 
 
 # ── Gemini Verification ────────────────────────────────────────────────────
 
-async def verify_with_gemini(resume_markdown: str, job_description: str, job_title: str) -> GeminiReview:
+
+async def verify_with_gemini(
+    resume_markdown: str, job_description: str, job_title: str
+) -> GeminiReview:
     """Use Gemini to holistically verify the generated resume quality."""
     if not settings.gemini_api_key:
         return GeminiReview(
-            ats_score=0, bullet_quality_score=0, jd_alignment_score=0,
-            strengths=[], weaknesses=[], suggestions=[],
-            verdict="Skipped", skipped=True,
+            ats_score=0,
+            bullet_quality_score=0,
+            jd_alignment_score=0,
+            strengths=[],
+            weaknesses=[],
+            suggestions=[],
+            verdict="Skipped",
+            skipped=True,
         )
 
     try:
@@ -288,14 +563,19 @@ Scoring guide:
     except Exception as e:
         print(f"⚠️ Gemini verification failed: {e}")
         return GeminiReview(
-            ats_score=0, bullet_quality_score=0, jd_alignment_score=0,
-            strengths=[], weaknesses=[],
+            ats_score=0,
+            bullet_quality_score=0,
+            jd_alignment_score=0,
+            strengths=[],
+            weaknesses=[],
             suggestions=[f"Gemini verification unavailable: {str(e)}"],
-            verdict="Skipped", skipped=True,
+            verdict="Skipped",
+            skipped=True,
         )
 
 
 # ── Endpoint ───────────────────────────────────────────────────────────────
+
 
 @router.post("/resume-generator", response_model=ResumeGeneratorResponse)
 async def create_resume_from_pdf(
@@ -323,7 +603,7 @@ async def create_resume_from_pdf(
     original_ats = compute_ats_score(raw_text, job_description, job_title)
 
     # Build job context
-    job: Optional[JobListing] = None
+    job: JobListing | None = None
     if job_description.strip() or job_title.strip():
         job = JobListing(
             id="user-provided",
@@ -343,7 +623,13 @@ async def create_resume_from_pdf(
     ATS_TARGET = 75
     MAX_RETRIES = 2
     resume_markdown = ""
-    tailored_ats = ATSScore(overall=0, keyword_match=0, matched_keywords=[], missing_keywords=[], feedback=[])
+    tailored_ats = ATSScore(
+        overall=0,
+        keyword_match=0,
+        matched_keywords=[],
+        missing_keywords=[],
+        feedback=[],
+    )
     result: dict = {}
 
     for attempt in range(1 + MAX_RETRIES):
@@ -366,7 +652,9 @@ async def create_resume_from_pdf(
             )
         except Exception as e:
             if attempt == 0:
-                raise HTTPException(status_code=500, detail=f"Resume generation failed: {e}")
+                raise HTTPException(
+                    status_code=500, detail=f"Resume generation failed: {e}"
+                )
             break  # Use best attempt so far
 
         resume_markdown = result["resume_markdown"]
@@ -384,32 +672,151 @@ async def create_resume_from_pdf(
 
         # Auto-categorize keywords by pattern matching
         _CATEGORY_PATTERNS = {
-            "Languages": {"python", "java", "javascript", "typescript", "golang", "ruby",
-                          "scala", "rust", "swift", "kotlin", "perl", "bash", "shell",
-                          "html", "html5", "css", "css3", "c++", "c#"},
-            "Frameworks & Libraries": {"react", "angular", "vue", "django", "flask", "fastapi",
-                                        "spring", "express", "node.js", "next.js", "tensorflow",
-                                        "pytorch", "pandas", "numpy", "scipy", "keras", "spark",
-                                        "hadoop", "flink", "airflow", "dbt", "streamlit",
-                                        "bootstrap", "tailwind", "redux", ".net"},
-            "Cloud & DevOps": {"aws", "azure", "gcp", "docker", "kubernetes", "terraform",
-                               "jenkins", "github", "gitlab", "ci/cd", "heroku", "vercel",
-                               "cloudformation", "lambda", "s3", "ec2", "ecs", "fargate",
-                               "sagemaker", "databricks", "snowflake", "redshift"},
-            "Databases": {"mysql", "postgresql", "postgres", "mongodb", "redis", "elasticsearch",
-                          "dynamodb", "cassandra", "sqlite", "oracle", "mssql", "neo4j",
-                          "firebase", "supabase", "pinecone", "bigquery"},
-            "Tools & Platforms": {"git", "jira", "confluence", "postman", "swagger",
-                                   "linux", "unix", "nginx", "grafana", "prometheus",
-                                   "kafka", "rabbitmq", "celery", "tableau", "powerbi",
-                                   "figma", "slack"},
-            "Data & ML": {"machine_learning", "deep_learning", "nlp", "computer_vision",
-                          "etl", "data_pipeline", "analytics", "visualization",
-                          "regression", "classification", "clustering", "neural",
-                          "llm", "transformer", "bert", "gpt", "rag"},
-            "Methodologies": {"agile", "scrum", "kanban", "sdlc", "stlc", "devops",
-                              "microservices", "rest", "graphql", "api", "oauth",
-                              "testing", "automation", "ci/cd"},
+            "Languages": {
+                "python",
+                "java",
+                "javascript",
+                "typescript",
+                "golang",
+                "ruby",
+                "scala",
+                "rust",
+                "swift",
+                "kotlin",
+                "perl",
+                "bash",
+                "shell",
+                "html",
+                "html5",
+                "css",
+                "css3",
+                "c++",
+                "c#",
+            },
+            "Frameworks & Libraries": {
+                "react",
+                "angular",
+                "vue",
+                "django",
+                "flask",
+                "fastapi",
+                "spring",
+                "express",
+                "node.js",
+                "next.js",
+                "tensorflow",
+                "pytorch",
+                "pandas",
+                "numpy",
+                "scipy",
+                "keras",
+                "spark",
+                "hadoop",
+                "flink",
+                "airflow",
+                "dbt",
+                "streamlit",
+                "bootstrap",
+                "tailwind",
+                "redux",
+                ".net",
+            },
+            "Cloud & DevOps": {
+                "aws",
+                "azure",
+                "gcp",
+                "docker",
+                "kubernetes",
+                "terraform",
+                "jenkins",
+                "github",
+                "gitlab",
+                "ci/cd",
+                "heroku",
+                "vercel",
+                "cloudformation",
+                "lambda",
+                "s3",
+                "ec2",
+                "ecs",
+                "fargate",
+                "sagemaker",
+                "databricks",
+                "snowflake",
+                "redshift",
+            },
+            "Databases": {
+                "mysql",
+                "postgresql",
+                "postgres",
+                "mongodb",
+                "redis",
+                "elasticsearch",
+                "dynamodb",
+                "cassandra",
+                "sqlite",
+                "oracle",
+                "mssql",
+                "neo4j",
+                "firebase",
+                "supabase",
+                "pinecone",
+                "bigquery",
+            },
+            "Tools & Platforms": {
+                "git",
+                "jira",
+                "confluence",
+                "postman",
+                "swagger",
+                "linux",
+                "unix",
+                "nginx",
+                "grafana",
+                "prometheus",
+                "kafka",
+                "rabbitmq",
+                "celery",
+                "tableau",
+                "powerbi",
+                "figma",
+                "slack",
+            },
+            "Data & ML": {
+                "machine_learning",
+                "deep_learning",
+                "nlp",
+                "computer_vision",
+                "etl",
+                "data_pipeline",
+                "analytics",
+                "visualization",
+                "regression",
+                "classification",
+                "clustering",
+                "neural",
+                "llm",
+                "transformer",
+                "bert",
+                "gpt",
+                "rag",
+            },
+            "Methodologies": {
+                "agile",
+                "scrum",
+                "kanban",
+                "sdlc",
+                "stlc",
+                "devops",
+                "microservices",
+                "rest",
+                "graphql",
+                "api",
+                "oauth",
+                "testing",
+                "automation",
+                "ci/cd",
+            },
         }
 
         # Classify each missing keyword
@@ -437,7 +844,9 @@ async def create_resume_from_pdf(
         for cat, kws in categorized.items():
             new_skill_lines.append(f"**{cat}** |||TAB||| {', '.join(kws)}")
         if uncategorized:
-            new_skill_lines.append(f"**Other Tools** |||TAB||| {', '.join(uncategorized)}")
+            new_skill_lines.append(
+                f"**Other Tools** |||TAB||| {', '.join(uncategorized)}"
+            )
 
         if skills_header and new_skill_lines:
             parts = resume_markdown.split(skills_header, 1)
@@ -479,18 +888,26 @@ async def create_resume_from_pdf(
 
             resume_markdown = parts[0] + skills_header + "\n".join(lines)
         elif new_skill_lines:
-            resume_markdown += "\n\n## Technical Skills\n" + "\n".join(new_skill_lines) + "\n"
+            resume_markdown += (
+                "\n\n## Technical Skills\n" + "\n".join(new_skill_lines) + "\n"
+            )
 
         # Recompute score after smart injection
         tailored_ats = compute_ats_score(resume_markdown, job_description, job_title)
         print(f"📊 After smart injection: ATS score = {tailored_ats.overall}%")
 
     # ── Compute changes from original ──
-    changes_made = _compute_changes(raw_text, resume_markdown, original_ats, tailored_ats)
+    changes_made = _compute_changes(
+        raw_text, resume_markdown, original_ats, tailored_ats
+    )
 
     # ── Gemini verification ──
-    gemini_review = await verify_with_gemini(resume_markdown, job_description, job_title)
-    print(f"🤖 Gemini verdict: {gemini_review.verdict} | ATS: {gemini_review.ats_score}% | Bullets: {gemini_review.bullet_quality_score}% | JD fit: {gemini_review.jd_alignment_score}%")
+    gemini_review = await verify_with_gemini(
+        resume_markdown, job_description, job_title
+    )
+    print(
+        f"🤖 Gemini verdict: {gemini_review.verdict} | ATS: {gemini_review.ats_score}% | Bullets: {gemini_review.bullet_quality_score}% | JD fit: {gemini_review.jd_alignment_score}%"
+    )
 
     # Convert to PDF
     try:
@@ -535,33 +952,55 @@ def _compute_changes(
         changes.append(f"➖ **Skills/Keywords Removed:** {', '.join(removed_skills)}")
 
     # 2. Sections comparison
-    orig_sections = set(re.findall(r'(?i)(?:education|experience|projects?|skills|certifications?|publications?)', orig_lower))
-    tail_sections = set(re.findall(r'(?i)(?:education|experience|projects?|skills|certifications?|publications?)', tail_lower))
+    orig_sections = set(
+        re.findall(
+            r"(?i)(?:education|experience|projects?|skills|certifications?|publications?)",
+            orig_lower,
+        )
+    )
+    tail_sections = set(
+        re.findall(
+            r"(?i)(?:education|experience|projects?|skills|certifications?|publications?)",
+            tail_lower,
+        )
+    )
     new_sections = tail_sections - orig_sections
     if new_sections:
-        changes.append(f"📋 **Sections Added:** {', '.join(s.title() for s in new_sections)}")
+        changes.append(
+            f"📋 **Sections Added:** {', '.join(s.title() for s in new_sections)}"
+        )
 
     # 3. ATS score change
     delta = tailored_ats.overall - original_ats.overall
     if delta > 0:
-        changes.append(f"📈 **ATS Score:** {original_ats.overall}% → {tailored_ats.overall}% (+{delta}%)")
+        changes.append(
+            f"📈 **ATS Score:** {original_ats.overall}% → {tailored_ats.overall}% (+{delta}%)"
+        )
     elif delta < 0:
-        changes.append(f"📉 **ATS Score:** {original_ats.overall}% → {tailored_ats.overall}% ({delta}%)")
+        changes.append(
+            f"📉 **ATS Score:** {original_ats.overall}% → {tailored_ats.overall}% ({delta}%)"
+        )
     else:
         changes.append(f"↔️ **ATS Score:** unchanged at {tailored_ats.overall}%")
 
     # 4. Keyword match improvement
     kw_delta = tailored_ats.keyword_match - original_ats.keyword_match
     if kw_delta > 0:
-        changes.append(f"🔑 **Keyword Coverage:** {original_ats.keyword_match}% → {tailored_ats.keyword_match}% (+{kw_delta}%)")
+        changes.append(
+            f"🔑 **Keyword Coverage:** {original_ats.keyword_match}% → {tailored_ats.keyword_match}% (+{kw_delta}%)"
+        )
 
     # 5. Bullet point enhancements
-    orig_bullets = len(re.findall(r'^[-•*]\s', original_text, re.MULTILINE))
-    tail_bullets = len(re.findall(r'^[-•*]\s', tailored_md, re.MULTILINE))
+    orig_bullets = len(re.findall(r"^[-•*]\s", original_text, re.MULTILINE))
+    tail_bullets = len(re.findall(r"^[-•*]\s", tailored_md, re.MULTILINE))
     if tail_bullets > orig_bullets:
-        changes.append(f"✏️ **Bullet Points:** {orig_bullets} → {tail_bullets} (added {tail_bullets - orig_bullets} action-driven bullets)")
+        changes.append(
+            f"✏️ **Bullet Points:** {orig_bullets} → {tail_bullets} (added {tail_bullets - orig_bullets} action-driven bullets)"
+        )
     elif tail_bullets < orig_bullets:
-        changes.append(f"✏️ **Bullet Points:** {orig_bullets} → {tail_bullets} (condensed for 1-page fit)")
+        changes.append(
+            f"✏️ **Bullet Points:** {orig_bullets} → {tail_bullets} (condensed for 1-page fit)"
+        )
 
     # 6. Word count
     orig_words = len(original_text.split())
@@ -572,4 +1011,3 @@ def _compute_changes(
         changes.append("No significant changes detected.")
 
     return changes
-

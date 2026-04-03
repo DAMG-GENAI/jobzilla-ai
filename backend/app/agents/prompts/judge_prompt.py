@@ -47,17 +47,21 @@ def get_judge_prompt(
     coach_score: float,
 ) -> str:
     """Generate the judge evaluation prompt."""
-    
-    recruiter_points = "\n".join([
-        f"- [{arg.strength}] {arg.point}: {arg.evidence or 'No specific evidence'}"
-        for arg in recruiter_arguments
-    ])
-    
-    coach_points = "\n".join([
-        f"- [{arg.strength}] {arg.point}: {arg.evidence or 'No specific evidence'}"
-        for arg in coach_arguments
-    ])
-    
+
+    recruiter_points = "\n".join(
+        [
+            f"- [{arg.strength}] {arg.point}: {arg.evidence or 'No specific evidence'}"
+            for arg in recruiter_arguments
+        ]
+    )
+
+    coach_points = "\n".join(
+        [
+            f"- [{arg.strength}] {arg.point}: {arg.evidence or 'No specific evidence'}"
+            for arg in coach_arguments
+        ]
+    )
+
     return f"""{JUDGE_SYSTEM_PROMPT}
 
 ## Job Being Evaluated:

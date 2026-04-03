@@ -5,15 +5,13 @@ This server provides tools for analyzing GitHub profiles,
 repositories, and contribution patterns via HTTP API.
 """
 
-import asyncio
-import json
 import os
 from typing import Any
 
 import httpx
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import uvicorn
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -55,6 +53,7 @@ async def fetch_github(endpoint: str) -> dict[str, Any]:
 # Request/Response Models
 # =============================================================================
 
+
 class UsernameRequest(BaseModel):
     username: str
 
@@ -68,6 +67,7 @@ class RepoRequest(BaseModel):
 # API Endpoints
 # =============================================================================
 
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
@@ -78,23 +78,27 @@ async def health_check():
 async def get_user_repos(request: UsernameRequest):
     """Get all public repositories for a GitHub user."""
     try:
-        repos = await fetch_github(f"/users/{request.username}/repos?per_page=100&sort=updated")
-        
+        repos = await fetch_github(
+            f"/users/{request.username}/repos?per_page=100&sort=updated"
+        )
+
         result = []
         for repo in repos:
-            result.append({
-                "name": repo["name"],
-                "full_name": repo["full_name"],
-                "description": repo.get("description"),
-                "url": repo["html_url"],
-                "language": repo.get("language"),
-                "stars": repo["stargazers_count"],
-                "forks": repo["forks_count"],
-                "is_fork": repo["fork"],
-                "updated_at": repo["updated_at"],
-                "topics": repo.get("topics", []),
-            })
-        
+            result.append(
+                {
+                    "name": repo["name"],
+                    "full_name": repo["full_name"],
+                    "description": repo.get("description"),
+                    "url": repo["html_url"],
+                    "language": repo.get("language"),
+                    "stars": repo["stargazers_count"],
+                    "forks": repo["forks_count"],
+                    "is_fork": repo["fork"],
+                    "updated_at": repo["updated_at"],
+                    "topics": repo.get("topics", []),
+                }
+            )
+
         return {
             "username": request.username,
             "repo_count": len(result),
@@ -112,13 +116,17 @@ async def get_repo_details(request: RepoRequest):
     try:
         # Fetch repo info
         repo = await fetch_github(f"/repos/{request.owner}/{request.repo}")
-        
+
         # Fetch languages
-        languages = await fetch_github(f"/repos/{request.owner}/{request.repo}/languages")
-        
+        languages = await fetch_github(
+            f"/repos/{request.owner}/{request.repo}/languages"
+        )
+
         # Fetch recent commits
-        commits = await fetch_github(f"/repos/{request.owner}/{request.repo}/commits?per_page=10")
-        
+        commits = await fetch_github(
+            f"/repos/{request.owner}/{request.repo}/commits?per_page=10"
+        )
+
         return {
             "name": repo["name"],
             "full_name": repo["full_name"],
@@ -133,7 +141,9 @@ async def get_repo_details(request: RepoRequest):
             "created_at": repo["created_at"],
             "updated_at": repo["updated_at"],
             "topics": repo.get("topics", []),
-            "license": repo.get("license", {}).get("name") if repo.get("license") else None,
+            "license": (
+                repo.get("license", {}).get("name") if repo.get("license") else None
+            ),
             "recent_commits": [
                 {
                     "sha": c["sha"][:7],
@@ -156,30 +166,38 @@ async def analyze_code_quality(request: RepoRequest):
     try:
         # Fetch repo info
         repo = await fetch_github(f"/repos/{request.owner}/{request.repo}")
-        
+
         # Fetch languages
-        languages = await fetch_github(f"/repos/{request.owner}/{request.repo}/languages")
-        
+        languages = await fetch_github(
+            f"/repos/{request.owner}/{request.repo}/languages"
+        )
+
         # Fetch commits for activity
-        commits = await fetch_github(f"/repos/{request.owner}/{request.repo}/commits?per_page=30")
-        
+        commits = await fetch_github(
+            f"/repos/{request.owner}/{request.repo}/commits?per_page=30"
+        )
+
         # Fetch contributors
         try:
-            contributors = await fetch_github(f"/repos/{request.owner}/{request.repo}/contributors?per_page=10")
+            contributors = await fetch_github(
+                f"/repos/{request.owner}/{request.repo}/contributors?per_page=10"
+            )
         except:
             contributors = []
-        
+
         # Calculate metrics
         total_bytes = sum(languages.values()) if languages else 0
         language_breakdown = {
             lang: round((bytes_count / total_bytes) * 100, 1) if total_bytes > 0 else 0
             for lang, bytes_count in languages.items()
         }
-        
+
         # Activity score (based on recent commits)
         commit_count = len(commits)
-        activity_level = "High" if commit_count >= 20 else "Medium" if commit_count >= 5 else "Low"
-        
+        activity_level = (
+            "High" if commit_count >= 20 else "Medium" if commit_count >= 5 else "Low"
+        )
+
         return {
             "repository": repo["full_name"],
             "quality_indicators": {
@@ -210,19 +228,21 @@ async def get_user_profile(request: UsernameRequest):
     try:
         # Fetch user info
         user = await fetch_github(f"/users/{request.username}")
-        
+
         # Fetch repos
-        repos = await fetch_github(f"/users/{request.username}/repos?per_page=100&sort=updated")
-        
+        repos = await fetch_github(
+            f"/users/{request.username}/repos?per_page=100&sort=updated"
+        )
+
         # Calculate stats
         total_stars = sum(r["stargazers_count"] for r in repos)
         languages = {}
         for repo in repos:
             if repo.get("language"):
                 languages[repo["language"]] = languages.get(repo["language"], 0) + 1
-        
+
         top_languages = sorted(languages.items(), key=lambda x: x[1], reverse=True)[:5]
-        
+
         return {
             "username": user["login"],
             "name": user.get("name"),
@@ -238,7 +258,10 @@ async def get_user_profile(request: UsernameRequest):
             "stats": {
                 "total_stars": total_stars,
                 "total_repos": len(repos),
-                "top_languages": [{"language": lang, "repo_count": count} for lang, count in top_languages],
+                "top_languages": [
+                    {"language": lang, "repo_count": count}
+                    for lang, count in top_languages
+                ],
             },
         }
     except httpx.HTTPStatusError as e:
@@ -253,19 +276,19 @@ async def get_contribution_patterns(request: UsernameRequest):
     try:
         # Fetch recent events
         events = await fetch_github(f"/users/{request.username}/events?per_page=100")
-        
+
         # Analyze event types
         event_counts = {}
         for event in events:
             event_type = event["type"]
             event_counts[event_type] = event_counts.get(event_type, 0) + 1
-        
+
         # Count specific contributions
         push_count = event_counts.get("PushEvent", 0)
         pr_count = event_counts.get("PullRequestEvent", 0)
         issue_count = event_counts.get("IssuesEvent", 0)
         review_count = event_counts.get("PullRequestReviewEvent", 0)
-        
+
         return {
             "username": request.username,
             "total_recent_events": len(events),
@@ -276,7 +299,9 @@ async def get_contribution_patterns(request: UsernameRequest):
                 "code_reviews": review_count,
             },
             "event_breakdown": event_counts,
-            "activity_level": "High" if len(events) > 50 else "Medium" if len(events) > 20 else "Low",
+            "activity_level": (
+                "High" if len(events) > 50 else "Medium" if len(events) > 20 else "Low"
+            ),
         }
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=str(e))

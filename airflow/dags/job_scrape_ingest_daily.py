@@ -7,13 +7,14 @@ from __future__ import annotations
 import json
 import os
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from airflow import DAG
 from airflow.operators.python import PythonOperator
+
+from airflow import DAG
 
 default_args = {
     "owner": "jobzilla",
@@ -53,7 +54,9 @@ def _html_to_text(html: str | None) -> str:
 
 
 def _humanize_name(raw: str) -> str:
-    return re.sub(r"\s{2,}", " ", raw.replace("-", " ").replace("_", " ")).strip().title()
+    return (
+        re.sub(r"\s{2,}", " ", raw.replace("-", " ").replace("_", " ")).strip().title()
+    )
 
 
 def _get_seed_urls() -> list[str]:
@@ -110,7 +113,11 @@ def _fetch_greenhouse_jobs(session: Any, seed_url: str) -> list[dict[str, Any]]:
         if not source_url:
             continue
         location_obj = job.get("location") or {}
-        location = location_obj.get("name") if isinstance(location_obj, dict) else str(location_obj or "")
+        location = (
+            location_obj.get("name")
+            if isinstance(location_obj, dict)
+            else str(location_obj or "")
+        )
         company = (
             job.get("company")
             or job.get("company_name")
@@ -137,7 +144,9 @@ def _fetch_lever_jobs(session: Any, seed_url: str) -> list[dict[str, Any]]:
     if not site:
         print(f"[lever] Could not parse site token from seed: {seed_url}")
         return []
-    response = session.get(f"https://api.lever.co/v0/postings/{site}?mode=json", timeout=30)
+    response = session.get(
+        f"https://api.lever.co/v0/postings/{site}?mode=json", timeout=30
+    )
     response.raise_for_status()
     postings = response.json()
 
@@ -182,7 +191,9 @@ def _scrape_all_jobs() -> list[dict[str, Any]]:
     seen: set[str] = set()
 
     with requests.Session() as session:
-        session.headers.update({"User-Agent": "jobzilla-airflow-scraper/1.0", "Accept": "application/json"})
+        session.headers.update(
+            {"User-Agent": "jobzilla-airflow-scraper/1.0", "Accept": "application/json"}
+        )
         for seed in seeds:
             netloc = urlparse(seed).netloc.lower()
             try:
@@ -210,13 +221,13 @@ def _scrape_all_jobs() -> list[dict[str, Any]]:
 def _parse_scraped_at(value: Any) -> datetime:
     if isinstance(value, datetime):
         if value.tzinfo:
-            return value.astimezone(timezone.utc).replace(tzinfo=None)
+            return value.astimezone(UTC).replace(tzinfo=None)
         return value
     if isinstance(value, str):
         try:
             parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
             if parsed.tzinfo:
-                return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+                return parsed.astimezone(UTC).replace(tzinfo=None)
             return parsed
         except ValueError:
             pass
@@ -226,7 +237,11 @@ def _parse_scraped_at(value: Any) -> datetime:
 def _get_conn_string() -> str:
     url = os.getenv("DATABASE_URL")
     if url:
-        return url.replace("+asyncpg", "").replace("+psycopg2", "").replace("postgres://", "postgresql://")
+        return (
+            url.replace("+asyncpg", "")
+            .replace("+psycopg2", "")
+            .replace("postgres://", "postgresql://")
+        )
 
     host = os.getenv("DB_HOST", os.getenv("PGHOST", "localhost"))
     port = os.getenv("DB_PORT", os.getenv("PGPORT", "5432"))
@@ -248,12 +263,23 @@ def _upsert_jobs(jobs: list[dict[str, Any]]) -> dict[str, int]:
         seen.add(source_url)
         deduped.append(
             {
-                "title": ((job.get("title") or "Untitled Role").strip() or "Untitled Role")[:500],
-                "company": ((job.get("company") or "Unknown Company").strip() or "Unknown Company")[:255],
-                "location": (str(job.get("location")).strip()[:255] if job.get("location") else None),
+                "title": (
+                    (job.get("title") or "Untitled Role").strip() or "Untitled Role"
+                )[:500],
+                "company": (
+                    (job.get("company") or "Unknown Company").strip()
+                    or "Unknown Company"
+                )[:255],
+                "location": (
+                    str(job.get("location")).strip()[:255]
+                    if job.get("location")
+                    else None
+                ),
                 "description": job.get("description") or "",
                 "source_url": source_url[:1000],
-                "source_platform": ((job.get("source_platform") or "unknown").strip() or "unknown")[:100],
+                "source_platform": (
+                    (job.get("source_platform") or "unknown").strip() or "unknown"
+                )[:100],
                 "scraped_at": _parse_scraped_at(job.get("scraped_at")),
             }
         )
@@ -295,7 +321,9 @@ def _upsert_jobs(jobs: list[dict[str, Any]]) -> dict[str, int]:
     finally:
         conn.close()
 
-    print(f"[upsert_jobs] input={len(jobs)} normalized={len(deduped)} inserted={inserted} updated={updated}")
+    print(
+        f"[upsert_jobs] input={len(jobs)} normalized={len(deduped)} inserted={inserted} updated={updated}"
+    )
     return {"inserted": inserted, "updated": updated}
 
 
@@ -311,13 +339,17 @@ def scrape_jobs_task(**context) -> int:
 
 
 def ingest_jobs_task(**context) -> int:
-    payload_path = context["ti"].xcom_pull(task_ids="scrape_jobs", key="scraped_jobs_path")
+    payload_path = context["ti"].xcom_pull(
+        task_ids="scrape_jobs", key="scraped_jobs_path"
+    )
     if not payload_path:
         raise ValueError("Missing scraped_jobs_path in XCom")
     jobs = json.loads(Path(payload_path).read_text(encoding="utf-8"))
     print(f"[ingest_jobs_task] Number of jobs received from scrape task: {len(jobs)}")
     stats = _upsert_jobs(jobs)
-    print(f"[ingest_jobs_task] inserted={stats.get('inserted', 0)} updated={stats.get('updated', 0)}")
+    print(
+        f"[ingest_jobs_task] inserted={stats.get('inserted', 0)} updated={stats.get('updated', 0)}"
+    )
     return int(stats.get("inserted", 0)) + int(stats.get("updated", 0))
 
 
