@@ -353,6 +353,93 @@ def ingest_jobs_task(**context) -> int:
     return int(stats.get("inserted", 0)) + int(stats.get("updated", 0))
 
 
+def embed_jobs_task(**context) -> int:
+    """Embed newly ingested jobs into Pinecone for semantic search."""
+    import psycopg2
+    from openai import OpenAI
+    from pinecone import Pinecone
+
+    openai_key = os.getenv("OPENAI_API_KEY", "")
+    pinecone_key = os.getenv("PINECONE_API_KEY", "")
+    index_name = os.getenv("PINECONE_INDEX_NAME", "killmatch-jobs")
+
+    if not openai_key or not pinecone_key:
+        print("[embed_jobs] Missing OPENAI_API_KEY or PINECONE_API_KEY, skipping")
+        return 0
+
+    client = OpenAI(api_key=openai_key)
+    pc = Pinecone(api_key=pinecone_key)
+    index = pc.Index(index_name)
+
+    conn = psycopg2.connect(_get_conn_string())
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT id, title, company, location, description
+        FROM jobs
+        WHERE embedding_id IS NULL AND is_active = true
+        ORDER BY scraped_at DESC
+        LIMIT 500
+        """
+    )
+    rows = cur.fetchall()
+
+    if not rows:
+        print("[embed_jobs] No jobs to embed")
+        cur.close()
+        conn.close()
+        return 0
+
+    print(f"[embed_jobs] Embedding {len(rows)} jobs")
+    embedded = 0
+    batch_size = 50
+
+    for i in range(0, len(rows), batch_size):
+        batch = rows[i : i + batch_size]
+        texts = [
+            f"{row[1]} at {row[2]}. {row[3] or ''}. {(row[4] or '')[:500]}"
+            for row in batch
+        ]
+
+        response = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=texts,
+        )
+
+        vectors = []
+        for j, row in enumerate(batch):
+            job_id = str(row[0])
+            vectors.append(
+                {
+                    "id": job_id,
+                    "values": response.data[j].embedding,
+                    "metadata": {
+                        "title": row[1] or "",
+                        "company": row[2] or "",
+                        "location": row[3] or "",
+                    },
+                }
+            )
+
+        index.upsert(vectors=vectors)
+
+        update_cur = conn.cursor()
+        for row in batch:
+            update_cur.execute(
+                "UPDATE jobs SET embedding_id = %s WHERE id = %s",
+                (str(row[0]), row[0]),
+            )
+        conn.commit()
+        update_cur.close()
+        embedded += len(batch)
+        print(f"[embed_jobs] Batch {i // batch_size + 1}: embedded {len(batch)} jobs")
+
+    cur.close()
+    conn.close()
+    print(f"[embed_jobs] Total embedded: {embedded}")
+    return embedded
+
+
 scrape_jobs = PythonOperator(
     task_id="scrape_jobs",
     python_callable=scrape_jobs_task,
@@ -365,7 +452,13 @@ ingest_jobs = PythonOperator(
     dag=dag,
 )
 
-scrape_jobs >> ingest_jobs
+embed_jobs = PythonOperator(
+    task_id="embed_jobs",
+    python_callable=embed_jobs_task,
+    dag=dag,
+)
+
+scrape_jobs >> ingest_jobs >> embed_jobs
 
 # Local test commands:
 # export JOB_SCRAPE_SEEDS="https://boards.greenhouse.io/openai,https://jobs.lever.co/figma"

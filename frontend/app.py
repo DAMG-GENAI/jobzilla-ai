@@ -111,13 +111,17 @@ def fetch_jobs_from_db(limit=10):
     try:
         import psycopg2
 
-        conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=os.getenv("DB_PORT", "5432"),
-            database=os.getenv("DB_NAME", "killmatch"),
-            user=os.getenv("DB_USER", "postgres"),
-            password=os.getenv("DB_PASSWORD", "postgres"),
-        )
+        db_url = os.getenv("DATABASE_URL", "")
+        if db_url:
+            conn = psycopg2.connect(db_url.replace("+asyncpg", ""))
+        else:
+            conn = psycopg2.connect(
+                host=os.getenv("DB_HOST", "localhost"),
+                port=os.getenv("DB_PORT", "5432"),
+                database=os.getenv("DB_NAME", "killmatch"),
+                user=os.getenv("DB_USER", "postgres"),
+                password=os.getenv("DB_PASSWORD", "postgres"),
+            )
         cur = conn.cursor()
         cur.execute(
             """
@@ -164,13 +168,17 @@ def fetch_analytics_data():
 
         import psycopg2
 
-        conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=os.getenv("DB_PORT", "5432"),
-            database=os.getenv("DB_NAME", "killmatch"),
-            user=os.getenv("DB_USER", "postgres"),
-            password=os.getenv("DB_PASSWORD", "postgres"),
-        )
+        db_url = os.getenv("DATABASE_URL", "")
+        if db_url:
+            conn = psycopg2.connect(db_url.replace("+asyncpg", ""))
+        else:
+            conn = psycopg2.connect(
+                host=os.getenv("DB_HOST", "localhost"),
+                port=os.getenv("DB_PORT", "5432"),
+                database=os.getenv("DB_NAME", "killmatch"),
+                user=os.getenv("DB_USER", "postgres"),
+                password=os.getenv("DB_PASSWORD", "postgres"),
+            )
         cur = conn.cursor()
 
         # 1. Fetch all active jobs with full data
