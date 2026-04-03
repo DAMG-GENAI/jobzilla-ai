@@ -10,7 +10,7 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   SERVICE_NAME: killmatch-backend
-  REGION: us-central1-lowa
+  REGION: us-central1
 
 jobs:
   deploy:
