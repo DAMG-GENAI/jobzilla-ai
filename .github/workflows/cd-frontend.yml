@@ -41,8 +41,13 @@ jobs:
             --region $REGION \
             --platform managed \
             --allow-unauthenticated \
-            --set-env-vars "BACKEND_URL=https://killmatch-backend-${{ env.PROJECT_ID }}.a.run.app" \
+            --set-env-vars "BACKEND_URL=https://killmatch-backend-95714121537.us-central1.run.app" \
             --set-env-vars "DATABASE_URL=${{ secrets.DATABASE_URL }}" \
+            --set-env-vars "DB_HOST=34.30.177.68" \
+            --set-env-vars "DB_PORT=5432" \
+            --set-env-vars "DB_NAME=jobskillsql" \
+            --set-env-vars "DB_USER=postgres" \
+            --set-env-vars "DB_PASSWORD=GenAI_KA7" \
             --set-env-vars "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" \
             --port 8501 \
             --memory 1Gi \

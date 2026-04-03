@@ -29,7 +29,11 @@ class Settings(BaseSettings):
     backend_port: int = 8000
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:8501", "http://localhost:3000"]
+    cors_origins: list[str] = [
+        "http://localhost:8501",
+        "http://localhost:3000",
+        "https://killmatch-frontend-95714121537.us-central1.run.app",
+    ]
 
     # OpenAI
     openai_api_key: str = ""
