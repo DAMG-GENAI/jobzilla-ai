@@ -20,6 +20,7 @@ class AgentRole(str, Enum):
     JUDGE = "judge"
     SKILL_GAP = "skill_gap"
     COVER_WRITER = "cover_writer"
+    RESUME_GENERATOR = "resume_generator"
     IMPROVEMENT = "improvement"
 
 
@@ -105,6 +106,7 @@ class AgentPipelineResult(BaseModel):
     # Outputs
     skill_gaps: List[Dict[str, Any]] = Field(default_factory=list)
     cover_letter: Optional[str] = None
+    generated_resume: Optional[str] = None
     improvement_suggestions: List[str] = Field(default_factory=list)
     
     # Metadata

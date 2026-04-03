@@ -17,6 +17,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
     
     # Application
@@ -33,7 +34,7 @@ class Settings(BaseSettings):
     
     # OpenAI
     openai_api_key: str = ""
-    openai_model: str = "gpt-4-turbo-preview"
+    openai_model: str = "gpt-4o"
     openai_embedding_model: str = "text-embedding-3-small"
     
     # Pinecone
@@ -44,6 +45,9 @@ class Settings(BaseSettings):
     # GitHub
     github_token: str = ""
     
+    # Gemini
+    gemini_api_key: str = ""
+
     # Tavily
     tavily_api_key: str = ""
     

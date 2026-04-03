@@ -250,7 +250,7 @@ def main():
         page = st.radio(
             "Navigation",
             ["🏠 Dashboard", "🔍 Job Match", "🤖 Agent Debate", 
-             "✉️ Cover Letter", "📈 Skill Roadmap", "📊 Analytics", "⚙️ Settings"],
+             "📄 Resume Generator", "✉️ Cover Letter", "📈 Skill Roadmap", "📊 Analytics", "⚙️ Settings"],
             label_visibility="collapsed"
         )
         
@@ -270,6 +270,8 @@ def main():
         show_job_match()
     elif page == "🤖 Agent Debate":
         show_agent_debate()
+    elif page == "📄 Resume Generator":
+        show_resume_generator()
     elif page == "✉️ Cover Letter":
         show_cover_letter()
     elif page == "📈 Skill Roadmap":
@@ -334,6 +336,18 @@ def show_job_match():
     with col1:
         st.markdown("### 📄 Your Profile")
         
+        with st.expander("📝 Candidate Details (Optional)", expanded=False):
+            st.session_state["candidate_name"] = st.text_input("Full Name", value=st.session_state.get("candidate_name", ""))
+            st.session_state["candidate_email"] = st.text_input("Email", value=st.session_state.get("candidate_email", ""))
+            st.session_state["candidate_phone"] = st.text_input("Phone", value=st.session_state.get("candidate_phone", ""))
+            st.session_state["candidate_location"] = st.text_input("Location", value=st.session_state.get("candidate_location", ""))
+            
+            c_links1, c_links2 = st.columns(2)
+            with c_links1:
+                st.session_state["candidate_linkedin"] = st.text_input("LinkedIn URL", value=st.session_state.get("candidate_linkedin", ""))
+            with c_links2:
+                st.session_state["candidate_portfolio"] = st.text_input("Portfolio URL", value=st.session_state.get("candidate_portfolio", ""))
+
         uploaded_file = st.file_uploader(
             "Upload your resume (PDF)",
             type=["pdf"],
@@ -345,6 +359,7 @@ def show_job_match():
             placeholder="e.g., octocat",
             help="We'll analyze your repositories for additional insights"
         )
+
         
         if uploaded_file:
             st.success("✅ Resume uploaded successfully!")
@@ -458,6 +473,12 @@ def run_langgraph_debate(job, resume_text, resume_skills, github_username):
     """Run the real LangGraph agent debate via backend API."""
     try:
         payload = {
+            "candidate_name": st.session_state.get("candidate_name", "Candidate"),
+            "candidate_email": st.session_state.get("candidate_email"),
+            "candidate_phone": st.session_state.get("candidate_phone"),
+            "candidate_location": st.session_state.get("candidate_location"),
+            "candidate_linkedin": st.session_state.get("candidate_linkedin"),
+            "candidate_portfolio": st.session_state.get("candidate_portfolio"),
             "resume_summary": resume_text[:2000],  # Limit length
             "resume_skills": resume_skills,
             "job_title": job.get("title", "Unknown"),
@@ -659,7 +680,24 @@ def show_agent_debate():
                         <p style="font-weight: bold; color: #ef6c00; margin: 0;">📚 {gap}</p>
                     </div>
                     """, unsafe_allow_html=True)
-        
+        # ─── Generated Resume ───
+        generated_resume = result.get("generated_resume")
+        if generated_resume:
+            st.divider()
+            st.markdown("### 📄 ATS-Tailored Resume")
+            st.caption("Expertly crafted by the Resume Generator Agent using insights from the debate.")
+            with st.expander("📝 View & Download Tailored Resume", expanded=True):
+                st.markdown(generated_resume)
+                
+                # Download button
+                st.download_button(
+                    "⬇️ Download Markdown",
+                    data=generated_resume,
+                    file_name=f"resume_tailored_{selected_job.get('company', 'company').replace(' ', '_')}.md",
+                    mime="text/markdown",
+                    use_container_width=True
+                )
+
         # ─── Debate Transcript ───
         st.divider()
         st.markdown("### 🎙️ Full Debate Transcript")
@@ -705,6 +743,195 @@ def show_agent_debate():
             the Recruiter and Career Coach analyze your fit for this role in real-time!</p>
         </div>
         """, unsafe_allow_html=True)
+
+
+
+def show_resume_generator():
+    """Standalone Resume Generator — upload master resume PDF + job description."""
+    st.markdown('<h1 class="main-header">📄 Resume Generator</h1>', unsafe_allow_html=True)
+    st.markdown("Upload your **master resume** and paste a **job description** — the AI agent will tailor a 1-page ATS-optimized resume for you.")
+    st.divider()
+
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+        st.markdown("### 📂 Your Master Resume")
+        master_resume = st.file_uploader(
+            "Upload Master Resume (PDF)",
+            type=["pdf"],
+            help="Upload your full resume. The agent will extract your experience, skills, education and tailor it for the job.",
+            key="rg_resume_upload"
+        )
+        if master_resume:
+            st.success(f"✅ Uploaded: `{master_resume.name}`")
+
+        target_role = st.text_input(
+            "Target Role",
+            placeholder="e.g. Data Engineer, ML Engineer, SWE",
+            help="Used if no job description is provided."
+        )
+
+    with col2:
+        st.markdown("### 🎯 Target Job Description")
+        job_title = st.text_input("Job Title", placeholder="Data Engineer")
+        job_company = st.text_input("Company Name", placeholder="Amazon")
+        job_desc = st.text_area(
+            "Paste Job Description *",
+            placeholder="We are looking for a Data Engineer who...\n\nResponsibilities:\n- ...\n\nRequirements:\n- ...",
+            height=250,
+            help="The more detailed the job description, the better the tailoring."
+        )
+
+    st.divider()
+
+    if st.button("🚀 Generate Tailored Resume", type="primary", use_container_width=True):
+        if not master_resume:
+            st.error("Please upload your master resume PDF.")
+            st.stop()
+
+        with st.spinner("🤖 Resume Generator Agent is analyzing your resume and tailoring it for the role..."):
+            try:
+                pdf_bytes = master_resume.read()
+
+                files = {"resume": (master_resume.name, pdf_bytes, "application/pdf")}
+                data = {
+                    "job_description": job_desc,
+                    "job_title": job_title,
+                    "job_company": job_company,
+                    "target_role": target_role or job_title or "Software Engineer",
+                }
+
+                response = requests.post(
+                    f"{BACKEND_URL}/api/v1/resume-generator",
+                    files=files,
+                    data=data,
+                    timeout=90
+                )
+
+                if response.status_code == 200:
+                    result = response.json()
+                    resume_md = result.get("resume_markdown", "")
+                    word_count = result.get("word_count", 0)
+                    assumptions = result.get("assumptions_made", [])
+                    candidate_name = result.get("candidate_name", "candidate")
+                    pdf_b64 = result.get("pdf_base64", "")
+
+                    st.success(f"✅ Resume tailored for **{candidate_name}**! ({word_count} words)")
+
+                    if assumptions:
+                        with st.expander("ℹ️ Assumptions Made by Agent"):
+                            for a in assumptions:
+                                st.markdown(f"- {a}")
+
+                    st.markdown("---")
+                    st.markdown("### 📄 Your ATS-Optimized Tailored Resume")
+                    st.markdown(resume_md)
+
+                    # Download buttons side-by-side
+                    dl_col1, dl_col2 = st.columns(2)
+                    safe_name = candidate_name.replace(" ", "_")
+                    safe_company = (job_company or "tailored").replace(" ", "_")
+
+                    with dl_col1:
+                        if pdf_b64:
+                            import base64 as b64lib
+                            pdf_bytes = b64lib.b64decode(pdf_b64)
+                            st.download_button(
+                                "⬇️ Download as PDF",
+                                data=pdf_bytes,
+                                file_name=f"resume_{safe_name}_{safe_company}.pdf",
+                                mime="application/pdf",
+                                use_container_width=True,
+                            )
+                        else:
+                            st.warning("PDF generation failed — download Markdown instead.")
+
+                    with dl_col2:
+                        st.download_button(
+                            "⬇️ Download as Markdown",
+                            data=resume_md,
+                            file_name=f"resume_{safe_name}_{safe_company}.md",
+                            mime="text/markdown",
+                            use_container_width=True,
+                        )
+
+                    # ── ATS Scores: Original vs Tailored ──────────
+                    orig_ats = result.get("original_ats_score")
+                    tail_ats = result.get("tailored_ats_score")
+
+                    if orig_ats or tail_ats:
+                        st.markdown("---")
+                        st.markdown("### 📊 ATS Compatibility Scores")
+
+                        ats_col1, ats_col2 = st.columns(2)
+
+                        def _render_ats_card(col, ats, label):
+                            with col:
+                                score = ats.get("overall", 0)
+                                kw_pct = ats.get("keyword_match", 0)
+                                color = "#2ecc71" if score >= 75 else "#f39c12" if score >= 55 else "#e74c3c"
+                                emoji = "🟢" if score >= 75 else "🟡" if score >= 55 else "🔴"
+                                st.markdown(f"""
+                                <div style="background: #1a1a2e; padding: 16px; border-radius: 12px; text-align: center; margin-bottom: 12px; border: 1px solid {color}33;">
+                                    <p style="color: #888; margin: 0 0 6px 0; font-size: 0.85em;">{label}</p>
+                                    <p style="font-size: 2.5em; font-weight: bold; color: {color}; margin: 0;">{emoji} {score}%</p>
+                                    <p style="color: #aaa; margin: 4px 0 0 0; font-size: 0.85em;">Keyword Match: {kw_pct}%</p>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                                for fb in ats.get("feedback", []):
+                                    st.markdown(f"<p style='font-size:0.9em;'>{fb}</p>", unsafe_allow_html=True)
+
+                        if orig_ats and orig_ats.get("overall", 0) > 0:
+                            _render_ats_card(ats_col1, orig_ats, "📄 Original Resume")
+                        if tail_ats and tail_ats.get("overall", 0) > 0:
+                            _render_ats_card(ats_col2, tail_ats, "✨ Tailored Resume")
+
+                        # Improvement delta
+                        if orig_ats and tail_ats:
+                            delta = tail_ats.get("overall", 0) - orig_ats.get("overall", 0)
+                            if delta > 0:
+                                st.success(f"📈 ATS score improved by **+{delta}%** after tailoring!")
+                            elif delta == 0:
+                                st.info("↔️ ATS score unchanged — resume was already well-matched.")
+                            else:
+                                st.warning(f"📉 ATS score changed by {delta}%.")
+
+                        # Keywords detail
+                        if tail_ats:
+                            with st.expander("🔍 Keyword Details (Tailored Resume)"):
+                                kw_col1, kw_col2 = st.columns(2)
+                                with kw_col1:
+                                    matched = tail_ats.get("matched_keywords", [])
+                                    if matched:
+                                        st.markdown("**✅ Matched Keywords**")
+                                        st.markdown(", ".join(f"`{k}`" for k in matched[:20]))
+                                with kw_col2:
+                                    missing = tail_ats.get("missing_keywords", [])
+                                    if missing:
+                                        st.markdown("**❌ Missing Keywords**")
+                                        st.markdown(", ".join(f"`{k}`" for k in missing[:15]))
+
+                    # ── Changes Highlighted ────────────────────────
+                    changes = result.get("changes_made", [])
+                    if changes:
+                        st.markdown("---")
+                        st.markdown("### 🔄 Changes from Original Resume")
+                        st.markdown("""
+                        <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                                    padding: 20px; border-radius: 12px; border-left: 4px solid #6c5ce7;
+                                    margin-bottom: 16px;">
+                        """, unsafe_allow_html=True)
+                        for change in changes:
+                            st.markdown(change)
+                        st.markdown("</div>", unsafe_allow_html=True)
+
+                else:
+                    st.error(f"Generation failed ({response.status_code}): {response.text}")
+
+            except Exception as e:
+                st.error(f"Error: {e}")
+
 
 
 

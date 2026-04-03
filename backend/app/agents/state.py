@@ -68,6 +68,7 @@ class AgentState(TypedDict, total=False):
     # =========================================================================
     skill_gaps: List[SkillGap]
     cover_letter: Optional[str]
+    generated_resume: Optional[str]
     improvement_suggestions: List[str]
     
     # =========================================================================

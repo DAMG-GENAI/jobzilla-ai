@@ -226,10 +226,11 @@ Return ONLY the JSON object, nothing else."""
 
 def _convert_to_resume_data(parsed: dict) -> ResumeData:
     """Convert parsed JSON to ResumeData model."""
+    VALID_CATEGORIES = {"Programming", "Framework", "Tool", "Soft Skill", "Other"}
     skills = [
         Skill(
             name=s.get("name", ""),
-            category=s.get("category"),
+            category=s.get("category") if s.get("category") in VALID_CATEGORIES else "Other",
             proficiency=s.get("proficiency"),
             years_of_experience=s.get("years_of_experience"),
         )
@@ -418,7 +419,7 @@ def extract_skills(text: str) -> list[Skill]:
     
     for keyword in tech_keywords:
         if keyword.lower() in text_lower:
-            skills.append(Skill(name=keyword, category="Technology"))
+            skills.append(Skill(name=keyword, category="Tool"))
     
     return skills
 

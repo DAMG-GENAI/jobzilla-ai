@@ -22,6 +22,12 @@ router = APIRouter()
 
 class DebateRequest(BaseModel):
     """Request body for running an agent debate."""
+    candidate_name: str = "Candidate"
+    candidate_email: Optional[str] = None
+    candidate_phone: Optional[str] = None
+    candidate_location: Optional[str] = None
+    candidate_linkedin: Optional[str] = None
+    candidate_portfolio: Optional[str] = None
     resume_summary: str
     resume_skills: list[str] = []
     job_title: str
@@ -45,6 +51,7 @@ class SimpleDebateResult(BaseModel):
     key_concerns: list[str]
     skill_gaps: list[str]
     cover_letter: Optional[str]
+    generated_resume: Optional[str] = None
     processing_time_seconds: float
 
 
@@ -61,9 +68,14 @@ async def run_agent_debate(request: DebateRequest):
         from app.models import Skill
         
         resume = ResumeData(
-            name="Candidate",
+            name=request.candidate_name,
+            email=request.candidate_email,
+            phone=request.candidate_phone,
+            location=request.candidate_location,
+            linkedin_url=request.candidate_linkedin,
+            portfolio_url=request.candidate_portfolio,
             summary=request.resume_summary,
-            skills=[Skill(name=s, category="Technology") for s in request.resume_skills],
+            skills=[Skill(name=s, category="Other") for s in request.resume_skills],
             experience=[],
             education=[],
             projects=[],
@@ -143,6 +155,7 @@ async def run_agent_debate(request: DebateRequest):
             key_concerns=result.verdict.reasoning.key_concerns if result.verdict else [],
             skill_gaps=skill_gap_names,
             cover_letter=result.cover_letter,
+            generated_resume=result.generated_resume,
             processing_time_seconds=result.processing_time_seconds,
         )
         

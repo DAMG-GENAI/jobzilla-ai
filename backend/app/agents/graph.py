@@ -14,6 +14,7 @@ from app.agents.edges.should_redebate import should_redebate
 from app.agents.nodes.coach import coach_node
 from app.agents.nodes.cover_writer import cover_writer_node
 from app.agents.nodes.improvement import improvement_node
+from app.agents.nodes.resume_generator import resume_generator_node
 from app.agents.nodes.judge import judge_node
 from app.agents.nodes.profile_parser import profile_parser_node
 from app.agents.nodes.recruiter import recruiter_node
@@ -38,7 +39,7 @@ def create_agent_graph() -> StateGraph:
     Flow:
     START → profile_parser → recruiter → coach → judge 
          → [redebate?] → (yes) → recruiter → coach → judge
-         → (no) → skill_gap → cover_writer → improvement → END
+         → (no) → skill_gap → cover_writer → resume_generator → improvement → END
     """
     
     # Create the graph
@@ -51,6 +52,7 @@ def create_agent_graph() -> StateGraph:
     graph.add_node("judge", judge_node)
     graph.add_node("skill_gap", skill_gap_node)
     graph.add_node("cover_writer", cover_writer_node)
+    graph.add_node("resume_generator", resume_generator_node)
     graph.add_node("improvement", improvement_node)
     
     # Set entry point
@@ -72,7 +74,8 @@ def create_agent_graph() -> StateGraph:
     )
     
     graph.add_edge("skill_gap", "cover_writer")
-    graph.add_edge("cover_writer", "improvement")
+    graph.add_edge("cover_writer", "resume_generator")
+    graph.add_edge("resume_generator", "improvement")
     graph.add_edge("improvement", END)
     
     return graph
@@ -200,6 +203,7 @@ async def run_agent_pipeline(
         ),
         skill_gaps=skill_gaps_dicts,
         cover_letter=final_state.get("cover_letter"),
+        generated_resume=final_state.get("generated_resume"),
         improvement_suggestions=final_state.get("improvement_suggestions", []),
         processing_time_seconds=processing_time,
         tokens_used=final_state.get("tokens_used", 0),

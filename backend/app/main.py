@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import analytics, cover_letter, debate, headhunter, health, match, profile
+from app.api.routes import analytics, cover_letter, debate, headhunter, health, match, profile, resume_generator
 from app.core.config import settings
 from app.core.logging import setup_logging
 
@@ -48,6 +48,7 @@ app.include_router(cover_letter.router, prefix="/api/v1", tags=["Cover Letter"])
 app.include_router(analytics.router, prefix="/api/v1", tags=["Analytics"])
 app.include_router(headhunter.router, prefix="/api/v1", tags=["Headhunter"])
 app.include_router(debate.router, prefix="/api/v1/debate", tags=["Agent Debate"])
+app.include_router(resume_generator.router, prefix="/api/v1", tags=["Resume Generator"])
 
 
 @app.get("/")

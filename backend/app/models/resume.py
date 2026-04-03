@@ -5,16 +5,26 @@ Pydantic models for resume/CV data structures.
 """
 
 from datetime import date
+from enum import Enum
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
+
+
+class SkillCategory(str, Enum):
+    """Categories for different types of skills."""
+    PROGRAMMING = "Programming"
+    FRAMEWORK = "Framework"
+    TOOL = "Tool"
+    SOFT_SKILL = "Soft Skill"
+    OTHER = "Other"
 
 
 class Skill(BaseModel):
     """Individual skill with optional proficiency level."""
     
     name: str
-    category: Optional[str] = None  # e.g., "Programming", "Framework", "Tool"
+    category: Optional[SkillCategory] = None
     proficiency: Optional[str] = None  # e.g., "Expert", "Intermediate", "Beginner"
     years_of_experience: Optional[float] = None
 
@@ -66,6 +76,25 @@ class Certification(BaseModel):
     url: Optional[str] = None
 
 
+class Publication(BaseModel):
+    """Publication entry (paper, article, etc.)."""
+    
+    title: str
+    publisher: Optional[str] = None
+    date_published: Optional[date] = None
+    url: Optional[str] = None
+    description: Optional[str] = None
+
+
+class Achievement(BaseModel):
+    """Award or achievement entry."""
+    
+    title: str
+    issuer: Optional[str] = None
+    date_received: Optional[date] = None
+    description: Optional[str] = None
+
+
 class ResumeData(BaseModel):
     """Complete resume/CV data structure."""
     
@@ -87,6 +116,8 @@ class ResumeData(BaseModel):
     education: List[Education] = Field(default_factory=list)
     projects: List[Project] = Field(default_factory=list)
     certifications: List[Certification] = Field(default_factory=list)
+    publications: List[Publication] = Field(default_factory=list)
+    achievements: List[Achievement] = Field(default_factory=list)
     
     # Additional
     languages: List[str] = Field(default_factory=list)  # Spoken languages
@@ -104,6 +135,6 @@ class ResumeData(BaseModel):
         for proj in self.projects:
             techs.update(proj.technologies)
         for skill in self.skills:
-            if skill.category in ["Programming", "Framework", "Tool", "Technology"]:
+            if skill.category in [SkillCategory.PROGRAMMING, SkillCategory.FRAMEWORK, SkillCategory.TOOL]:
                 techs.add(skill.name)
         return sorted(list(techs))
