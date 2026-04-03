@@ -78,12 +78,12 @@ jobs:
         run: |
           cd mcp_servers/github-context
           pip install -r requirements.txt
-          pip install pytest
+          pip install pytest pytest-asyncio httpx
           pytest tests -v
-      
+
       - name: Test Job Market MCP Server
         run: |
           cd mcp_servers/job-market
           pip install -r requirements.txt
-          pip install pytest
+          pip install pytest pytest-asyncio httpx
           pytest tests -v
