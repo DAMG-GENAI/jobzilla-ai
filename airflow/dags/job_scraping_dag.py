@@ -88,12 +88,14 @@ def validate_and_store(**context):
             continue
         skip_patterns = [
             "jobs/search",
-            "/jobs/",
             "jobs-in-",
             "jobs?",
             "best-",
             "top-",
             "glassdoor.com/Job",
+            "linkedin.com/jobs/",
+            "indeed.com/jobs",
+            "indeed.com/q-",
         ]
         if any(p in url for p in skip_patterns):
             continue
