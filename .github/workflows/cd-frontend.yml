@@ -44,6 +44,9 @@ jobs:
             --set-env-vars "BACKEND_URL=https://killmatch-backend-95714121537.us-central1.run.app" \
             --set-env-vars "DATABASE_URL=${{ secrets.DATABASE_URL }}" \
             --set-env-vars "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" \
+            --set-env-vars "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" \
+            --set-env-vars "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" \
+            --set-env-vars "REDIRECT_URI=https://killmatch-frontend-95714121537.us-central1.run.app" \
             --port 8501 \
             --memory 1Gi \
             --min-instances 0 \

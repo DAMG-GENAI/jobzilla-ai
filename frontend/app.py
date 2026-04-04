@@ -9,9 +9,14 @@ import os
 
 import requests
 import streamlit as st
+from streamlit_google_auth import Authenticate
 
 # Backend API URL
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+
+# Google OAuth config
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
 # Page config - must be first Streamlit command
 st.set_page_config(
@@ -308,8 +313,65 @@ def fetch_analytics_data():
     return result
 
 
+def show_login():
+    """Show Google OAuth login page."""
+    st.markdown(
+        """
+        <div style="text-align: center; padding: 60px 20px;">
+            <h1 style="font-size: 3rem;">🎯 Jobzilla AI</h1>
+            <p style="font-size: 1.2rem; color: #666; margin-bottom: 40px;">
+                AI-Powered Job Matching with Multi-Agent Debates
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+        authenticator = Authenticate(
+            secret_credentials_path="",
+            cookie_name="jobzilla_auth",
+            cookie_key="jobzilla_secret_key",
+            redirect_uri=os.getenv(
+                "REDIRECT_URI",
+                "http://localhost:8501",
+            ),
+            client_id=GOOGLE_CLIENT_ID,
+            client_secret=GOOGLE_CLIENT_SECRET,
+        )
+        authenticator.check_authentification()
+        authenticator.login()
+
+        if st.session_state.get("connected"):
+            st.session_state["user_email"] = st.session_state.get("user_info", {}).get(
+                "email", ""
+            )
+            st.session_state["user_name"] = st.session_state.get("user_info", {}).get(
+                "name", ""
+            )
+            st.session_state["user_avatar"] = st.session_state.get("user_info", {}).get(
+                "picture", ""
+            )
+            st.session_state["authenticated"] = True
+            st.rerun()
+    else:
+        # No OAuth configured — allow access without login (dev mode)
+        st.info("Google OAuth not configured. Running in dev mode.")
+        dev_name = st.text_input("Enter your name to continue", value="Dev User")
+        if st.button("Continue as Guest"):
+            st.session_state["authenticated"] = True
+            st.session_state["user_name"] = dev_name
+            st.session_state["user_email"] = "dev@localhost"
+            st.rerun()
+
+
 def main():
     """Main application entry point."""
+    # Check authentication
+    if not st.session_state.get("authenticated"):
+        show_login()
+        return
+
     # Sidebar
     with st.sidebar:
         st.markdown("## 🎯 KillMatch")
@@ -338,8 +400,23 @@ def main():
 
         st.divider()
 
-        # Profile section
+        # User section
         st.markdown("### 👤 Profile")
+        user_name = st.session_state.get("user_name", "User")
+        user_email = st.session_state.get("user_email", "")
+        avatar = st.session_state.get("user_avatar", "")
+        if avatar:
+            st.image(avatar, width=40)
+        st.markdown(f"**{user_name}**")
+        if user_email:
+            st.caption(user_email)
+        if st.button("Logout", use_container_width=True):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
+
+        st.divider()
+
         if (
             "resume_uploaded" in st.session_state
             and st.session_state["resume_uploaded"]
