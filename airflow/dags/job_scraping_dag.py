@@ -83,8 +83,19 @@ def validate_and_store(**context):
         snippet = (job.get("snippet") or "").strip()
         source = job.get("source", "Unknown")
 
-        # Skip if no URL or generic search page
-        if not url or "jobs/search" in url:
+        # Skip generic search/listing pages (not actual job postings)
+        if not url:
+            continue
+        skip_patterns = [
+            "jobs/search",
+            "/jobs/",
+            "jobs-in-",
+            "jobs?",
+            "best-",
+            "top-",
+            "glassdoor.com/Job",
+        ]
+        if any(p in url for p in skip_patterns):
             continue
 
         # Clean up title — Tavily titles often have site names appended
@@ -92,6 +103,14 @@ def validate_and_store(**context):
             0
         ].strip()
         if not title or len(title) < 5:
+            continue
+
+        # Skip aggregate/search result pages by title patterns
+        if re.search(
+            r"\d{1,3},?\d{3}\+?\s+\w+\s+jobs|jobs in\s|Best\s.*Jobs\s\d{4}",
+            title,
+            re.IGNORECASE,
+        ):
             continue
 
         # Deduplicate by URL
