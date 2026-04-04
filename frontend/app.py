@@ -316,18 +316,23 @@ def main():
         st.caption("*AI-Powered Job Matching*")
         st.divider()
 
+        nav_options = [
+            "🏠 Dashboard",
+            "🔍 Job Match",
+            "🤖 Agent Debate",
+            "📄 Resume Generator",
+            "✉️ Cover Letter",
+            "📈 Skill Roadmap",
+            "📊 Analytics",
+            "⚙️ Settings",
+        ]
+        default_idx = 0
+        if st.session_state.get("nav_page") in nav_options:
+            default_idx = nav_options.index(st.session_state.pop("nav_page"))
         page = st.radio(
             "Navigation",
-            [
-                "🏠 Dashboard",
-                "🔍 Job Match",
-                "🤖 Agent Debate",
-                "📄 Resume Generator",
-                "✉️ Cover Letter",
-                "📈 Skill Roadmap",
-                "📊 Analytics",
-                "⚙️ Settings",
-            ],
+            nav_options,
+            index=default_idx,
             label_visibility="collapsed",
         )
 
@@ -733,7 +738,8 @@ def show_agent_debate():
     if not st.session_state.get("matched_jobs"):
         st.warning("No job matches found. Go to **Job Match** and run a search first!")
         if st.button("🔍 Go to Job Match"):
-            st.switch_page("Job Match")
+            st.session_state["nav_page"] = "🔍 Job Match"
+            st.rerun()
         return
 
     matched_jobs = st.session_state["matched_jobs"]
@@ -1248,7 +1254,8 @@ def show_skill_roadmap():
     if not st.session_state.get("matched_jobs"):
         st.warning("Run a job match first to see personalized skill recommendations!")
         if st.button("🔍 Go to Job Match"):
-            st.switch_page("Job Match")
+            st.session_state["nav_page"] = "🔍 Job Match"
+            st.rerun()
         return
 
     matched_jobs = st.session_state["matched_jobs"]
