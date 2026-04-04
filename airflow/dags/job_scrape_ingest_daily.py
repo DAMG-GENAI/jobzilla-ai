@@ -37,7 +37,20 @@ dag = DAG(
 
 
 DEFAULT_SEEDS = [
+    "https://boards.greenhouse.io/openai",
+    "https://boards.greenhouse.io/stripe",
+    "https://boards.greenhouse.io/figma",
+    "https://boards.greenhouse.io/discord",
+    "https://boards.greenhouse.io/coinbase",
+    "https://boards.greenhouse.io/databricks",
+    "https://boards.greenhouse.io/anthropic",
+    "https://boards.greenhouse.io/notion",
+    "https://boards.greenhouse.io/duolingo",
+    "https://boards.greenhouse.io/airbnb",
     "https://boards.greenhouse.io/speechify",
+    "https://jobs.lever.co/figma",
+    "https://jobs.lever.co/spotify",
+    "https://jobs.lever.co/netflix",
     "https://jobs.lever.co/explodingkittens",
 ]
 DEFAULT_MAX_SEEDS = 500
