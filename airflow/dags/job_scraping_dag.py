@@ -1,9 +1,11 @@
 """
-Job Scraping DAG
+Job Scraping DAG (Tavily API)
 
-Runs every 4 hours to scrape jobs, validate, embed, and store in Pinecone.
+Runs every 4 hours to scrape jobs via Tavily, store in PostgreSQL, and embed in Pinecone.
 """
 
+import os
+import re
 from datetime import datetime, timedelta
 
 from airflow.operators.python import PythonOperator
@@ -22,8 +24,8 @@ default_args = {
 dag = DAG(
     "job_scraping",
     default_args=default_args,
-    description="Scrape jobs from multiple sources and store in Pinecone",
-    schedule_interval="0 */4 * * *",  # Every 4 hours
+    description="Scrape jobs via Tavily API and store with real URLs",
+    schedule_interval="0 */4 * * *",
     start_date=datetime(2024, 1, 1),
     catchup=False,
     tags=["scraping", "jobs"],
@@ -31,12 +33,10 @@ dag = DAG(
 
 
 def scrape_jobs(**context):
-    """Scrape jobs from multiple sources."""
+    """Scrape jobs from Tavily via MCP Job Market server."""
     import httpx
 
     jobs = []
-
-    # Job search queries to run
     queries = [
         "Python Developer",
         "Software Engineer",
@@ -45,11 +45,10 @@ def scrape_jobs(**context):
         "Full Stack Developer",
     ]
 
-    # Scrape from MCP Job Market server (PORT 8002!)
     for query in queries:
         try:
             response = httpx.post(
-                "http://mcp-jobmarket:8002/tools/search_jobs",  # Fixed port!
+                "http://mcp-jobmarket:8002/tools/search_jobs",
                 json={"query": query, "limit": 20},
                 timeout=60,
             )
@@ -60,118 +59,197 @@ def scrape_jobs(**context):
         except Exception as e:
             print(f"Error scraping {query}: {e}")
 
-    print(f"Total jobs scraped: {len(jobs)}")
-
-    # Store in XCom for next task
+    print(f"Total raw results: {len(jobs)}")
     context["ti"].xcom_push(key="raw_jobs", value=jobs)
-
     return len(jobs)
 
 
-def validate_jobs(**context):
-    """Parse and validate jobs from raw snippets."""
-    import re
-
-    raw_jobs = context["ti"].xcom_pull(key="raw_jobs")
-
-    parsed_jobs = []
-    seen = set()
-
-    for job in raw_jobs:
-        source = job.get("source", "Unknown")
-        url = job.get("url", "")
-        snippet = job.get("snippet", "")
-
-        # Try to extract individual job listings from snippet
-        # Pattern: "### Job Title\n\n#### Company Name"
-        job_matches = re.findall(r"###\s+([^\n]+)\n\n\s*####\s+([^\n]+)", snippet)
-
-        for title, company in job_matches:
-            title = title.strip()
-            company = company.strip()
-
-            # Skip duplicates
-            key = f"{title}:{company}"
-            if key in seen:
-                continue
-            seen.add(key)
-
-            # Create job entry
-            parsed_jobs.append(
-                {
-                    "title": title,
-                    "company": company,
-                    "source_url": url,
-                    "source_platform": source,
-                    "description": f"Position at {company}. Found via {source}.",
-                }
-            )
-
-    print(f"Parsed {len(parsed_jobs)} unique jobs from {len(raw_jobs)} raw results")
-    context["ti"].xcom_push(key="valid_jobs", value=parsed_jobs)
-
-    return len(parsed_jobs)
-
-
-def embed_and_store(**context):
-    """Store jobs directly in PostgreSQL."""
-    import os
-    from datetime import datetime
-
+def validate_and_store(**context):
+    """Parse Tavily results, extract real URLs, store in PostgreSQL."""
     from sqlalchemy import create_engine, text
 
-    valid_jobs = context["ti"].xcom_pull(key="valid_jobs")
-
-    if not valid_jobs:
-        print("No jobs to store")
+    raw_jobs = context["ti"].xcom_pull(key="raw_jobs")
+    if not raw_jobs:
+        print("No jobs to process")
         return 0
 
-    # Connect to database
-    db_url = os.getenv(
-        "DATABASE_URL",
-        "postgresql+psycopg2://postgres:postgres@postgres:5432/killmatch",
-    )
-    # Replace async driver with sync driver for Airflow
+    # Parse each Tavily result — keep the REAL URL from Tavily
+    valid_jobs = []
+    seen_urls = set()
+
+    for job in raw_jobs:
+        url = (job.get("url") or "").strip()
+        title = (job.get("title") or "").strip()
+        snippet = (job.get("snippet") or "").strip()
+        source = job.get("source", "Unknown")
+
+        # Skip if no URL or generic search page
+        if not url or "jobs/search" in url:
+            continue
+
+        # Clean up title — Tavily titles often have site names appended
+        title = re.split(r"\s*\|\s*|\s*-\s*LinkedIn\s*$|\s*-\s*Indeed\s*$", title)[
+            0
+        ].strip()
+        if not title or len(title) < 5:
+            continue
+
+        # Deduplicate by URL
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+
+        # Extract company from title if possible (pattern: "Role at Company")
+        company = "Unknown"
+        if " at " in title:
+            parts = title.rsplit(" at ", 1)
+            title = parts[0].strip()
+            company = parts[1].strip()
+
+        valid_jobs.append(
+            {
+                "title": title[:500],
+                "company": company[:255],
+                "description": snippet[:2000],
+                "source_url": url[:1000],
+                "source_platform": source[:100],
+            }
+        )
+
+    print(f"Valid jobs with URLs: {len(valid_jobs)}")
+
+    if not valid_jobs:
+        return 0
+
+    # Store in PostgreSQL
+    db_url = os.getenv("DATABASE_URL", "")
+    if not db_url:
+        print("DATABASE_URL not set, skipping store")
+        return 0
     db_url = db_url.replace("+asyncpg", "+psycopg2")
     engine = create_engine(db_url)
 
-    stored_count = 0
-    skipped_count = 0
-
-    with engine.begin() as conn:  # Use begin() for auto-commit
+    stored = 0
+    skipped = 0
+    with engine.begin() as conn:
         for job in valid_jobs:
             try:
-                # Check if job already exists by title + company
-                result = conn.execute(
-                    text(
-                        "SELECT id FROM jobs WHERE title = :title AND company = :company"
-                    ),
-                    {"title": job["title"], "company": job["company"]},
+                existing = conn.execute(
+                    text("SELECT id FROM jobs WHERE source_url = :url"),
+                    {"url": job["source_url"]},
                 )
-                if result.fetchone():
-                    skipped_count += 1
-                    continue  # Skip existing
+                if existing.fetchone():
+                    skipped += 1
+                    continue
 
-                # Insert new job (without source_url to avoid unique constraint)
                 conn.execute(
                     text("""
-                        INSERT INTO jobs (title, company, source_platform, description, scraped_at, is_active)
-                        VALUES (:title, :company, :source_platform, :description, :scraped_at, true)
+                        INSERT INTO jobs (title, company, description, source_url, source_platform, scraped_at, is_active)
+                        VALUES (:title, :company, :description, :source_url, :source_platform, :scraped_at, true)
                     """),
                     {
-                        "title": job["title"],
-                        "company": job["company"],
-                        "source_platform": job.get("source_platform", ""),
-                        "description": job.get("description", ""),
+                        **job,
                         "scraped_at": datetime.utcnow(),
                     },
                 )
-                stored_count += 1
+                stored += 1
             except Exception as e:
-                print(f"Error storing job {job.get('title')}: {e}")
+                print(f"Error storing {job['title']}: {e}")
 
-    print(f"Stored {stored_count} new jobs, skipped {skipped_count} existing")
-    return stored_count
+    print(f"Stored {stored} new jobs, skipped {skipped} existing")
+    context["ti"].xcom_push(key="stored_count", value=stored)
+    return stored
+
+
+def embed_new_jobs(**context):
+    """Embed newly stored jobs into Pinecone."""
+    import psycopg2
+    from openai import OpenAI
+    from pinecone import Pinecone
+
+    openai_key = os.getenv("OPENAI_API_KEY", "")
+    pinecone_key = os.getenv("PINECONE_API_KEY", "")
+    index_name = os.getenv("PINECONE_INDEX_NAME", "killmatch-jobs")
+
+    if not openai_key or not pinecone_key:
+        print("[embed] Missing API keys, skipping")
+        return 0
+
+    client = OpenAI(api_key=openai_key)
+    pc = Pinecone(api_key=pinecone_key)
+    index = pc.Index(index_name)
+
+    db_url = os.getenv("DATABASE_URL", "")
+    if not db_url:
+        print("[embed] DATABASE_URL not set")
+        return 0
+    db_url = (
+        db_url.replace("+asyncpg", "")
+        .replace("+psycopg2", "")
+        .replace("postgres://", "postgresql://")
+    )
+
+    conn = psycopg2.connect(db_url)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, title, company, location, description, source_url, source_platform
+        FROM jobs
+        WHERE embedding_id IS NULL AND is_active = true
+        AND source_url IS NOT NULL AND source_url != ''
+        AND source_url NOT LIKE '%jobs/search%'
+        ORDER BY scraped_at DESC
+        LIMIT 500
+    """)
+    rows = cur.fetchall()
+
+    if not rows:
+        print("[embed] No new jobs to embed")
+        cur.close()
+        conn.close()
+        return 0
+
+    print(f"[embed] Embedding {len(rows)} jobs")
+    embedded = 0
+
+    for i in range(0, len(rows), 50):
+        batch = rows[i : i + 50]
+        texts = [f"{r[1]} at {r[2]}. {r[3] or ''}. {(r[4] or '')[:500]}" for r in batch]
+        resp = client.embeddings.create(model="text-embedding-3-small", input=texts)
+
+        vectors = []
+        for j, row in enumerate(batch):
+            vectors.append(
+                {
+                    "id": str(row[0]),
+                    "values": resp.data[j].embedding,
+                    "metadata": {
+                        "title": row[1] or "",
+                        "company": row[2] or "",
+                        "location": row[3] or "",
+                        "description": (row[4] or "")[:500],
+                        "url": row[5] or "",
+                        "source": row[6] or "",
+                        "job_id": str(row[0]),
+                    },
+                }
+            )
+
+        index.upsert(vectors=vectors)
+        ucur = conn.cursor()
+        for row in batch:
+            ucur.execute(
+                "UPDATE jobs SET embedding_id = %s WHERE id = %s",
+                (str(row[0]), row[0]),
+            )
+        conn.commit()
+        ucur.close()
+        embedded += len(batch)
+        print(f"[embed] Batch {i // 50 + 1}: {embedded} embedded")
+
+    cur.close()
+    conn.close()
+    print(f"[embed] Total: {embedded}")
+    return embedded
 
 
 scrape_task = PythonOperator(
@@ -180,17 +258,16 @@ scrape_task = PythonOperator(
     dag=dag,
 )
 
-validate_task = PythonOperator(
-    task_id="validate_jobs",
-    python_callable=validate_jobs,
-    dag=dag,
-)
-
 store_task = PythonOperator(
-    task_id="embed_and_store",
-    python_callable=embed_and_store,
+    task_id="validate_and_store",
+    python_callable=validate_and_store,
     dag=dag,
 )
 
-# Define task dependencies
-scrape_task >> validate_task >> store_task
+embed_task = PythonOperator(
+    task_id="embed_new_jobs",
+    python_callable=embed_new_jobs,
+    dag=dag,
+)
+
+scrape_task >> store_task >> embed_task
