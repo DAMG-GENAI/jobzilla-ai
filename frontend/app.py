@@ -9,7 +9,6 @@ import os
 
 import requests
 import streamlit as st
-from streamlit_google_auth import Authenticate
 
 # Backend API URL
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
@@ -328,43 +327,72 @@ def show_login():
     )
 
     if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
-        import json
-        import tempfile
+        redirect_uri = os.getenv("REDIRECT_URI", "http://localhost:8501")
 
-        creds = {
-            "web": {
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [os.getenv("REDIRECT_URI", "http://localhost:8501")],
-            }
-        }
-        creds_file = os.path.join(tempfile.gettempdir(), "google_creds.json")
-        with open(creds_file, "w") as f:
-            json.dump(creds, f)
+        # Check if we got a callback with auth code
+        params = st.query_params
+        auth_code = params.get("code")
 
-        authenticator = Authenticate(
-            secret_credentials_path=creds_file,
-            cookie_name="jobzilla_auth",
-            cookie_key="jobzilla_secret_key_2026",
-            redirect_uri=os.getenv("REDIRECT_URI", "http://localhost:8501"),
+        if auth_code:
+            # Exchange code for tokens
+            try:
+                token_resp = requests.post(
+                    "https://oauth2.googleapis.com/token",
+                    data={
+                        "code": auth_code,
+                        "client_id": GOOGLE_CLIENT_ID,
+                        "client_secret": GOOGLE_CLIENT_SECRET,
+                        "redirect_uri": redirect_uri,
+                        "grant_type": "authorization_code",
+                    },
+                    timeout=10,
+                )
+                token_data = token_resp.json()
+
+                if "access_token" in token_data:
+                    # Get user info from Google
+                    user_resp = requests.get(
+                        "https://www.googleapis.com/oauth2/v2/userinfo",
+                        headers={
+                            "Authorization": f"Bearer {token_data['access_token']}"
+                        },
+                        timeout=10,
+                    )
+                    user_info = user_resp.json()
+
+                    st.session_state["user_name"] = user_info.get("name", "User")
+                    st.session_state["user_email"] = user_info.get("email", "")
+                    st.session_state["user_avatar"] = user_info.get("picture", "")
+                    st.session_state["authenticated"] = True
+
+                    # Clear the code from URL
+                    st.query_params.clear()
+                    st.rerun()
+                else:
+                    st.error(
+                        f"Login failed: {token_data.get('error_description', 'Unknown error')}"
+                    )
+            except Exception as e:
+                st.error(f"Login error: {e}")
+
+        # Show login button
+        auth_url = (
+            f"https://accounts.google.com/o/oauth2/v2/auth"
+            f"?client_id={GOOGLE_CLIENT_ID}"
+            f"&redirect_uri={redirect_uri}"
+            f"&response_type=code"
+            f"&scope=openid+email+profile"
+            f"&access_type=offline"
+            f"&prompt=consent"
         )
-        authenticator.check_authentification()
-        authenticator.login()
-
-        if st.session_state.get("connected"):
-            st.session_state["user_email"] = st.session_state.get("user_info", {}).get(
-                "email", ""
-            )
-            st.session_state["user_name"] = st.session_state.get("user_info", {}).get(
-                "name", ""
-            )
-            st.session_state["user_avatar"] = st.session_state.get("user_info", {}).get(
-                "picture", ""
-            )
-            st.session_state["authenticated"] = True
-            st.rerun()
+        st.markdown(
+            f'<div style="text-align: center; margin-top: 30px;">'
+            f'<a href="{auth_url}" target="_self" style="'
+            f"background: #4285F4; color: white; padding: 12px 32px; "
+            f"border-radius: 8px; text-decoration: none; font-size: 1.1rem; "
+            f'font-weight: 600;">Sign in with Google</a></div>',
+            unsafe_allow_html=True,
+        )
     else:
         # No OAuth configured — allow access without login (dev mode)
         st.info("Google OAuth not configured. Running in dev mode.")
