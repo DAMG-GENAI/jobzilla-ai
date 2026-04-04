@@ -247,7 +247,7 @@ def _get_conn_string() -> str:
     port = os.getenv("DB_PORT", os.getenv("PGPORT", "5432"))
     name = os.getenv("DB_NAME", os.getenv("PGDATABASE", "killmatch"))
     user = os.getenv("DB_USER", os.getenv("PGUSER", "postgres"))
-    password = os.getenv("DB_PASSWORD", os.getenv("PGPASSWORD", "postgres"))
+    password = os.getenv("DB_PASSWORD", os.getenv("PGPASSWORD", ""))
     return f"dbname={name} user={user} password={password} host={host} port={port}"
 
 

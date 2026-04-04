@@ -297,10 +297,9 @@ async def match_jobs(
                 from sqlalchemy import create_engine
                 from sqlalchemy import text as sql_text
 
-                db_url = os.getenv(
-                    "DATABASE_URL",
-                    "postgresql+psycopg2://postgres:postgres@postgres:5432/killmatch",
-                )
+                db_url = os.getenv("DATABASE_URL", "")
+                if not db_url:
+                    raise ValueError("DATABASE_URL is not set")
                 db_url = db_url.replace("+asyncpg", "+psycopg2")
                 engine = create_engine(db_url)
 

@@ -173,6 +173,7 @@ services:
     restart: unless-stopped
     command: >
       bash -c "airflow db init &&
+               # Local dev only: default admin credentials
                airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true &&
                airflow scheduler & airflow webserver"
 

@@ -26,7 +26,7 @@ DB_HOST = os.getenv("DB_HOST", "killmatch-postgres")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "killmatch")
 DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 
 
 def get_embedding(client: OpenAI, text: str) -> list[float]:

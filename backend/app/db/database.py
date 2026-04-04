@@ -12,9 +12,7 @@ from sqlalchemy.pool import NullPool
 from app.db.models import Base
 
 # Database URL from environment
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/killmatch"
-)
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 
 # Create async engine

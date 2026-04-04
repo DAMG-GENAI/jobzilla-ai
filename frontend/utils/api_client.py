@@ -4,12 +4,13 @@ API Client
 Wrapper for backend API calls.
 """
 
+import os
 from typing import Any
 
 import httpx
 
 # Default backend URL - can be overridden
-BACKEND_URL = "http://localhost:8000"
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 
 class APIClient:
