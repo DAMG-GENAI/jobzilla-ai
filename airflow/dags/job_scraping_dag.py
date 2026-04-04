@@ -131,6 +131,8 @@ def embed_and_store(**context):
         "DATABASE_URL",
         "postgresql+psycopg2://postgres:postgres@postgres:5432/killmatch",
     )
+    # Replace async driver with sync driver for Airflow
+    db_url = db_url.replace("+asyncpg", "+psycopg2")
     engine = create_engine(db_url)
 
     stored_count = 0
