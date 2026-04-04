@@ -85,7 +85,7 @@ airflow = [
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-exclude = ["Mid Term/"]
+exclude = ["Mid Term/", "backend/alembic/versions/"]
 
 [tool.ruff.lint]
 select = [
