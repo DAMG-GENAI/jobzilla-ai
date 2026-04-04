@@ -252,6 +252,41 @@ async def match_jobs(
 
             print(f"✅ Pinecone returned {len(matches)} matches")
 
+            # Enrich matches with source_url from DB if missing
+            if matches:
+                try:
+                    from sqlalchemy import create_engine
+                    from sqlalchemy import text as sql_text
+
+                    db_url = os.getenv("DATABASE_URL", "")
+                    db_url = db_url.replace("+asyncpg", "+psycopg2")
+                    engine = create_engine(db_url)
+                    missing_url_ids = [m["id"] for m in matches if not m.get("url")]
+                    if missing_url_ids:
+                        with engine.connect() as conn:
+                            result = conn.execute(
+                                sql_text(
+                                    "SELECT id, source_url, title FROM jobs WHERE id = ANY(:ids)"
+                                ),
+                                {"ids": missing_url_ids},
+                            )
+                            url_map = {}
+                            for row in result:
+                                url_map[str(row[0])] = {
+                                    "url": row[1] or "",
+                                    "title": row[2] or "",
+                                }
+                            for m in matches:
+                                if not m.get("url") and m["id"] in url_map:
+                                    m["url"] = url_map[m["id"]]["url"]
+                                    if url_map[m["id"]]["title"]:
+                                        m["title"] = url_map[m["id"]]["title"]
+                        print(
+                            f"✅ Enriched {len(missing_url_ids)} matches with DB urls"
+                        )
+                except Exception as enrich_err:
+                    print(f"⚠️ URL enrichment failed: {enrich_err}")
+
         except Exception as pinecone_err:
             print(
                 f"⚠️ Pinecone query failed (falling back to database): {pinecone_err}"
@@ -284,7 +319,7 @@ async def match_jobs(
                 with engine.connect() as conn:
                     result = conn.execute(
                         sql_text(
-                            f"SELECT id, title, company, description, source_platform FROM jobs WHERE ({like_clauses}) AND is_active = true LIMIT 10"
+                            f"SELECT id, title, company, description, source_platform, source_url FROM jobs WHERE ({like_clauses}) AND is_active = true LIMIT 10"
                         ),
                         params,
                     )
@@ -295,7 +330,7 @@ async def match_jobs(
                             "title": row[1] or "Unknown Role",
                             "company": row[2] or "Unknown Company",
                             "description": row[3] or "",
-                            "url": "",
+                            "url": row[5] or "",
                             "source": row[4] or "Database",
                             "match_score": 0.75,
                             "recruiter_concerns": [],
