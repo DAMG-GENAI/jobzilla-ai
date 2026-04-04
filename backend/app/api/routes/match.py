@@ -213,7 +213,7 @@ async def match_jobs(
                 raise Exception("Pinecone not initialized")
 
             search_results = index.query(
-                vector=query_vector, top_k=10, include_metadata=True
+                vector=query_vector, top_k=30, include_metadata=True
             )
 
             for match in search_results.matches:
@@ -250,6 +250,16 @@ async def match_jobs(
                 }
                 matches.append(job_match)
 
+            # Sort: jobs with real URLs first, then by score
+            matches.sort(
+                key=lambda m: (
+                    1 if m.get("url") and "jobs/search" not in m.get("url", "") else 0,
+                    m.get("match_score", 0),
+                ),
+                reverse=True,
+            )
+            matches = matches[:10]
+
             print(f"✅ Pinecone returned {len(matches)} matches")
 
             # Enrich matches with source_url from DB if missing
@@ -277,8 +287,11 @@ async def match_jobs(
                                     "title": row[2] or "",
                                 }
                             for m in matches:
-                                if not m.get("url") and m["id"] in url_map:
-                                    m["url"] = url_map[m["id"]]["url"]
+                                if m["id"] in url_map:
+                                    db_url_val = url_map[m["id"]]["url"]
+                                    # Only use real URLs, not generic search pages
+                                    if db_url_val and "jobs/search" not in db_url_val:
+                                        m["url"] = db_url_val
                                     if url_map[m["id"]]["title"]:
                                         m["title"] = url_map[m["id"]]["title"]
                         print(
