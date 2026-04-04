@@ -42,7 +42,6 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --set-env-vars "GITHUB_TOKEN=${{ secrets.GH_TOKEN }}" \
-            --set-env-vars "PORT=8001" \
             --port 8001 \
             --memory 512Mi \
             --min-instances 0 \

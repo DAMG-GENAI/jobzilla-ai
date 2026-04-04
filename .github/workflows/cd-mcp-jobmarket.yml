@@ -45,7 +45,6 @@ jobs:
             --set-env-vars "PINECONE_INDEX_NAME=killmatch-jobs" \
             --set-env-vars "TAVILY_API_KEY=${{ secrets.TAVILY_API_KEY }}" \
             --set-env-vars "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" \
-            --set-env-vars "PORT=8002" \
             --port 8002 \
             --memory 512Mi \
             --min-instances 0 \
