@@ -213,38 +213,40 @@ async def match_jobs(
                 raise Exception("Pinecone not initialized")
 
             search_results = index.query(
-                vector=query_vector, top_k=20, include_metadata=True
+                vector=query_vector, top_k=50, include_metadata=True
             )
 
             # Build matches without LLM calls first (fast)
+            all_matches = []
             for match in search_results.matches:
                 metadata = match.metadata or {}
                 if not metadata.get("title"):
                     continue
 
-                job_match = {
-                    "id": str(metadata.get("job_id", match.id)),
-                    "title": metadata.get("title", "Unknown Role"),
-                    "company": metadata.get("company", "Unknown Company"),
-                    "description": metadata.get("description", "") or "",
-                    "url": metadata.get("url", ""),
-                    "source": metadata.get("source", ""),
-                    "match_score": match.score,
-                    "recruiter_concerns": [],
-                    "coach_highlights": [],
-                    "missing_skills": [],
-                }
-                matches.append(job_match)
+                all_matches.append(
+                    {
+                        "id": str(metadata.get("job_id", match.id)),
+                        "title": metadata.get("title", "Unknown Role"),
+                        "company": metadata.get("company", "Unknown Company"),
+                        "description": metadata.get("description", "") or "",
+                        "url": metadata.get("url", ""),
+                        "source": metadata.get("source", ""),
+                        "match_score": match.score,
+                        "recruiter_concerns": [],
+                        "coach_highlights": [],
+                        "missing_skills": [],
+                    }
+                )
 
-            # Sort: jobs with real URLs first, then by score
-            matches.sort(
-                key=lambda m: (
-                    1 if m.get("url") and "jobs/search" not in m.get("url", "") else 0,
-                    m.get("match_score", 0),
-                ),
-                reverse=True,
-            )
-            matches = matches[:10]
+            # Diversify: max 2 jobs per company
+            company_count = {}
+            for m in all_matches:
+                company = m["company"]
+                company_count[company] = company_count.get(company, 0) + 1
+                if company_count[company] <= 2:
+                    matches.append(m)
+                if len(matches) >= 10:
+                    break
 
             # Now extract skills only for top 10 (not 30)
             resume_skills_lower = {s.lower() for s in skills if s}
