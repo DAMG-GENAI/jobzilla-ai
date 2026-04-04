@@ -328,16 +328,27 @@ def show_login():
     )
 
     if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+        import json
+        import tempfile
+
+        creds = {
+            "web": {
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [os.getenv("REDIRECT_URI", "http://localhost:8501")],
+            }
+        }
+        creds_file = os.path.join(tempfile.gettempdir(), "google_creds.json")
+        with open(creds_file, "w") as f:
+            json.dump(creds, f)
+
         authenticator = Authenticate(
-            secret_credentials_path="",
+            secret_credentials_path=creds_file,
             cookie_name="jobzilla_auth",
-            cookie_key="jobzilla_secret_key",
-            redirect_uri=os.getenv(
-                "REDIRECT_URI",
-                "http://localhost:8501",
-            ),
-            client_id=GOOGLE_CLIENT_ID,
-            client_secret=GOOGLE_CLIENT_SECRET,
+            cookie_key="jobzilla_secret_key_2026",
+            redirect_uri=os.getenv("REDIRECT_URI", "http://localhost:8501"),
         )
         authenticator.check_authentification()
         authenticator.login()
