@@ -213,7 +213,7 @@ async def match_jobs(
                 raise Exception("Pinecone not initialized")
 
             search_results = index.query(
-                vector=query_vector, top_k=50, include_metadata=True
+                vector=query_vector, top_k=200, include_metadata=True
             )
 
             # Build matches without LLM calls first (fast)
