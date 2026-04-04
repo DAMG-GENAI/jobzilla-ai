@@ -96,28 +96,75 @@ def store_recommendations(**context):
 
 
 def send_notifications(**context):
-    """Send notifications to users with new matches."""
-    import httpx
+    """Send email notifications to users with new matches."""
+    import os
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
 
     results = context["ti"].xcom_pull(key="match_results")
 
+    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user = os.getenv("SMTP_USER", "")
+    smtp_password = os.getenv("SMTP_PASSWORD", "")
+
+    if not smtp_user or not smtp_password:
+        print("[notify] SMTP not configured, skipping emails")
+        return 0
+
     notifications_sent = 0
     for result in results:
-        if len(result.get("matches", [])) > 0:
-            try:
-                httpx.post(
-                    "http://backend:8000/api/v1/notifications/send",
-                    json={
-                        "user_id": result["user_id"],
-                        "type": "new_matches",
-                        "count": len(result["matches"]),
-                    },
-                    timeout=30,
-                )
-                notifications_sent += 1
-            except Exception:
-                pass
+        matches = result.get("matches", [])
+        user_email = result.get("email")
+        user_name = result.get("name", "there")
 
+        if not matches or not user_email:
+            continue
+
+        # Build job list HTML
+        job_rows = ""
+        for match in matches[:10]:
+            title = match.get("title", "Unknown Role")
+            company = match.get("company", "Unknown Company")
+            job_rows += f"<li><strong>{title}</strong> at {company}</li>"
+
+        html = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        padding: 30px; border-radius: 12px 12px 0 0;">
+                <h1 style="color: white; margin: 0;">Jobzilla AI</h1>
+                <p style="color: rgba(255,255,255,0.9);">Your Daily Job Matches</p>
+            </div>
+            <div style="background: white; padding: 30px; border: 1px solid #eee;
+                        border-radius: 0 0 12px 12px;">
+                <p>Hi <strong>{user_name}</strong>,</p>
+                <p>We found <strong>{len(matches)} new job matches</strong> for you today!</p>
+                <ul>{job_rows}</ul>
+                <p style="color: #666; font-size: 14px;">
+                    Log in to Jobzilla AI to view details and generate cover letters.
+                </p>
+            </div>
+        </div>
+        """
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"Jobzilla: {len(matches)} new job matches for you!"
+        msg["From"] = f"Jobzilla AI <{smtp_user}>"
+        msg["To"] = user_email
+        msg.attach(MIMEText(html, "html"))
+
+        try:
+            with smtplib.SMTP(smtp_host, smtp_port) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.sendmail(smtp_user, user_email, msg.as_string())
+            print(f"[notify] Sent email to {user_email}")
+            notifications_sent += 1
+        except Exception as e:
+            print(f"[notify] Failed to send to {user_email}: {e}")
+
+    print(f"[notify] Total emails sent: {notifications_sent}")
     return notifications_sent
 
 

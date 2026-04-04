@@ -161,6 +161,10 @@ services:
       - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME}
       - DATABASE_URL=${DATABASE_URL}
       - MCP_JOBMARKET_URL=http://mcp-jobmarket:8002
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
