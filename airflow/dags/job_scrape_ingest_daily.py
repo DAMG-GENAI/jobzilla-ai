@@ -374,7 +374,7 @@ def embed_jobs_task(**context) -> int:
     conn = psycopg2.connect(_get_conn_string())
     cur = conn.cursor()
     cur.execute("""
-        SELECT id, title, company, location, description
+        SELECT id, title, company, location, description, source_url, source_platform
         FROM jobs
         WHERE embedding_id IS NULL AND is_active = true
         ORDER BY scraped_at DESC
@@ -415,6 +415,10 @@ def embed_jobs_task(**context) -> int:
                         "title": row[1] or "",
                         "company": row[2] or "",
                         "location": row[3] or "",
+                        "description": (row[4] or "")[:500],
+                        "url": row[5] or "",
+                        "source": row[6] or "",
+                        "job_id": str(row[0]),
                     },
                 }
             )
