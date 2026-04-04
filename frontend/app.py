@@ -531,7 +531,7 @@ def show_job_match():
                     f"{BACKEND_URL}/api/v1/match",
                     data=payload,
                     files=files if files else None,
-                    timeout=60,  # Increased for Pinecone/OpenAI latency
+                    timeout=120,
                 )
 
                 if response.status_code == 200:

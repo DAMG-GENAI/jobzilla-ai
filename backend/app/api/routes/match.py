@@ -213,40 +213,26 @@ async def match_jobs(
                 raise Exception("Pinecone not initialized")
 
             search_results = index.query(
-                vector=query_vector, top_k=30, include_metadata=True
+                vector=query_vector, top_k=20, include_metadata=True
             )
 
+            # Build matches without LLM calls first (fast)
             for match in search_results.matches:
                 metadata = match.metadata or {}
-
                 if not metadata.get("title"):
                     continue
-
-                job_description = metadata.get("description", "") or ""
-                job_title = metadata.get("title", "")
-
-                full_job_text = f"{job_title}\n\n{job_description}"
-                job_skills = set(extract_skills_with_llm(full_job_text, max_skills=10))
-
-                resume_skills_lower = {s.lower() for s in skills if s}
-                job_skills_lower = {s.lower() for s in job_skills if s}
-
-                missing_skills_lower = job_skills_lower - resume_skills_lower
-                missing_skills = [
-                    s for s in job_skills if s.lower() in missing_skills_lower
-                ][:5]
 
                 job_match = {
                     "id": str(metadata.get("job_id", match.id)),
                     "title": metadata.get("title", "Unknown Role"),
                     "company": metadata.get("company", "Unknown Company"),
-                    "description": job_description,
+                    "description": metadata.get("description", "") or "",
                     "url": metadata.get("url", ""),
-                    "source": metadata.get("source", "LinkedIn"),
+                    "source": metadata.get("source", ""),
                     "match_score": match.score,
                     "recruiter_concerns": [],
                     "coach_highlights": [],
-                    "missing_skills": missing_skills,
+                    "missing_skills": [],
                 }
                 matches.append(job_match)
 
@@ -259,6 +245,20 @@ async def match_jobs(
                 reverse=True,
             )
             matches = matches[:10]
+
+            # Now extract skills only for top 10 (not 30)
+            resume_skills_lower = {s.lower() for s in skills if s}
+            for m in matches:
+                try:
+                    full_text = f"{m['title']}\n\n{m['description']}"
+                    job_skills = set(extract_skills_with_llm(full_text, max_skills=10))
+                    job_skills_lower = {s.lower() for s in job_skills if s}
+                    missing = job_skills_lower - resume_skills_lower
+                    m["missing_skills"] = [
+                        s for s in job_skills if s.lower() in missing
+                    ][:5]
+                except Exception:
+                    pass
 
             print(f"✅ Pinecone returned {len(matches)} matches")
 
