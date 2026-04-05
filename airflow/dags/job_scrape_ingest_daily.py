@@ -390,6 +390,12 @@ def embed_jobs_task(**context) -> int:
         SELECT id, title, company, location, description, source_url, source_platform
         FROM jobs
         WHERE embedding_id IS NULL AND is_active = true
+        AND source_url IS NOT NULL AND source_url != ''
+        AND source_url NOT LIKE '%%linkedin.com%%'
+        AND source_url NOT LIKE '%%indeed.com%%'
+        AND title NOT LIKE '%%[...]%%'
+        AND title NOT LIKE '%%###%%'
+        AND company != 'Unknown'
         ORDER BY scraped_at DESC
         LIMIT 500
         """)
