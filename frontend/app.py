@@ -427,13 +427,16 @@ def main():
             "📊 Analytics",
             "⚙️ Settings",
         ]
-        default_idx = 0
+        # Handle programmatic navigation
         if st.session_state.get("nav_page") in nav_options:
-            default_idx = nav_options.index(st.session_state.pop("nav_page"))
+            st.session_state["selected_nav"] = st.session_state.pop("nav_page")
         page = st.radio(
             "Navigation",
             nav_options,
-            index=default_idx,
+            index=nav_options.index(
+                st.session_state.get("selected_nav", "🏠 Dashboard")
+            ),
+            key="selected_nav",
             label_visibility="collapsed",
         )
 
@@ -456,13 +459,18 @@ def main():
 
         st.divider()
 
-        if (
-            "resume_uploaded" in st.session_state
-            and st.session_state["resume_uploaded"]
-        ):
+        if st.session_state.get("resume_uploaded"):
             st.success("✅ Resume uploaded")
+            if st.session_state.get("resume_skills"):
+                st.caption(
+                    f"Skills: {', '.join(st.session_state['resume_skills'][:5])}"
+                )
         else:
             st.info("Upload your resume to get started")
+
+        if st.session_state.get("has_matches"):
+            match_count = len(st.session_state.get("matched_jobs", []))
+            st.success(f"✅ {match_count} jobs matched")
 
     # Route to pages
     if page == "🏠 Dashboard":
