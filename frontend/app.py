@@ -225,13 +225,22 @@ def fetch_analytics_data():
             # If no explicit skills, extract from description
             if not req_skills and not pref_skills and row[3]:
                 desc_lower = (row[3] or "").lower()
-                common_skills = [
+                # Skills that need word boundary matching to avoid false positives
+                # e.g. "Go" matches "going", "REST" matches "restaurant"
+                import re
+
+                boundary_skills = {
+                    "Go": r"\bgo\b(?:lang)?",
+                    "R": r"\bR\b",
+                    r"C\+\+": r"\bc\+\+\b",
+                    "REST": r"\bREST\s?(?:ful|API)\b",
+                }
+                # Skills safe to match with simple `in` check
+                safe_skills = [
                     "Python",
                     "JavaScript",
                     "TypeScript",
                     "Java",
-                    "C++",
-                    "Go",
                     "Rust",
                     "Ruby",
                     "React",
@@ -265,15 +274,17 @@ def fetch_analytics_data():
                     "Spark",
                     "Airflow",
                     "Kafka",
-                    "REST",
                     "GraphQL",
                     "CI/CD",
                     "Agile",
                     "Scrum",
                 ]
-                for s in common_skills:
+                for s in safe_skills:
                     if s.lower() in desc_lower:
                         skill_counter[s] = skill_counter.get(s, 0) + 1
+                for skill_name, pattern in boundary_skills.items():
+                    if re.search(pattern, row[3] or "", re.IGNORECASE):
+                        skill_counter[skill_name] = skill_counter.get(skill_name, 0) + 1
 
             # Salary data
             if row[7] or row[8]:

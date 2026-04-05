@@ -96,8 +96,10 @@ async def get_system_metrics():
                 "ORDER BY scraped_at DESC LIMIT 500"
             )
         ).fetchall()
+        import re
+
         skill_counter = Counter()
-        skill_list = [
+        safe_skills = [
             "Python",
             "SQL",
             "AWS",
@@ -106,7 +108,6 @@ async def get_system_metrics():
             "React",
             "TypeScript",
             "Java",
-            "Go",
             "TensorFlow",
             "PyTorch",
             "Spark",
@@ -114,12 +115,20 @@ async def get_system_metrics():
             "PostgreSQL",
             "MongoDB",
             "Redis",
+            "Machine Learning",
+            "NLP",
+            "Kafka",
+            "CI/CD",
         ]
+        boundary_skills = {"Go": r"\bgo\b(?:lang)?", "REST": r"\bREST\s?(?:ful|API)\b"}
         for row in skill_rows:
             desc = (row[0] or "").lower()
-            for skill in skill_list:
+            for skill in safe_skills:
                 if skill.lower() in desc:
                     skill_counter[skill] += 1
+            for skill_name, pattern in boundary_skills.items():
+                if re.search(pattern, row[0] or "", re.IGNORECASE):
+                    skill_counter[skill_name] += 1
         top_skills = [k for k, _ in skill_counter.most_common(10)]
 
         # Jobs with embeddings (searchable)
