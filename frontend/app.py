@@ -186,7 +186,8 @@ def fetch_analytics_data():
         cur = conn.cursor()
 
         # 1. Fetch all active jobs with full data
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, title, company, description, source_platform,
                    required_skills, preferred_skills, salary_min, salary_max,
                    remote_type, experience_level, location
@@ -194,10 +195,13 @@ def fetch_analytics_data():
             WHERE is_active = true
             ORDER BY scraped_at DESC
             LIMIT 500
-        """)
+        """
+        )
 
         skill_counter = {}
-        cooccurrence = {}  # (skill_a, skill_b) → count, skill_a < skill_b alphabetically
+        cooccurrence = (
+            {}
+        )  # (skill_a, skill_b) → count, skill_a < skill_b alphabetically
 
         for row in cur.fetchall():
             job = {
@@ -219,12 +223,16 @@ def fetch_analytics_data():
             # Count skills
             req_skills = row[5] if isinstance(row[5], list) else []
             pref_skills = row[6] if isinstance(row[6], list) else []
-            all_job_skills = [s for s in req_skills + pref_skills if s and isinstance(s, str)]
+            all_job_skills = [
+                s for s in req_skills + pref_skills if s and isinstance(s, str)
+            ]
             for skill in all_job_skills:
                 skill_counter[skill] = skill_counter.get(skill, 0) + 1
 
             # Co-occurrence: every pair of skills in this job
-            unique_skills = list(dict.fromkeys(all_job_skills))  # dedupe, preserve order
+            unique_skills = list(
+                dict.fromkeys(all_job_skills)
+            )  # dedupe, preserve order
             for i in range(len(unique_skills)):
                 for j in range(i + 1, len(unique_skills)):
                     pair = tuple(sorted([unique_skills[i], unique_skills[j]]))
@@ -872,7 +880,8 @@ def show_agent_debate():
     with st.expander(
         "💡 **Why is this better than a simple match score?**", expanded=False
     ):
-        st.markdown("""
+        st.markdown(
+            """
         | Traditional Matching | 🤖 Agent Debate |
         |---------------------|-----------------|
         | Simple keyword overlap | Deep semantic understanding of your experience |
@@ -886,7 +895,8 @@ def show_agent_debate():
         - 📈 **Improve strategically** — See specific skill gaps to close
         - 💪 **Discover hidden strengths** — The Coach finds things you might not think to mention
         - ⚠️ **Anticipate objections** — Know what a recruiter might flag before your interview
-        """)
+        """
+        )
 
     st.divider()
 
@@ -2226,12 +2236,40 @@ def show_knowledge_graph():
     # Skill category definitions
     # -------------------------------------------------------------------------
     SKILL_CATEGORIES = {
-        "Languages": ["Python", "JavaScript", "TypeScript", "Java", "Go", "Rust", "Ruby", "C++", "R"],
+        "Languages": [
+            "Python",
+            "JavaScript",
+            "TypeScript",
+            "Java",
+            "Go",
+            "Rust",
+            "Ruby",
+            "C++",
+            "R",
+        ],
         "Frontend": ["React", "Angular", "Vue", "Node.js", "GraphQL"],
         "Backend": ["Django", "Flask", "FastAPI", "Spring", "REST"],
         "Cloud": ["AWS", "GCP", "Azure"],
-        "DevOps": ["Docker", "Kubernetes", "CI/CD", "Terraform", "Linux", "Git", "Airflow", "Kafka"],
-        "Data": ["SQL", "PostgreSQL", "MySQL", "MongoDB", "Redis", "Elasticsearch", "Spark", "Pandas"],
+        "DevOps": [
+            "Docker",
+            "Kubernetes",
+            "CI/CD",
+            "Terraform",
+            "Linux",
+            "Git",
+            "Airflow",
+            "Kafka",
+        ],
+        "Data": [
+            "SQL",
+            "PostgreSQL",
+            "MySQL",
+            "MongoDB",
+            "Redis",
+            "Elasticsearch",
+            "Spark",
+            "Pandas",
+        ],
         "AI/ML": ["Machine Learning", "Deep Learning", "NLP", "TensorFlow", "PyTorch"],
         "Process": ["Agile", "Scrum"],
     }
@@ -2280,11 +2318,9 @@ def show_knowledge_graph():
     skill_cooccurrence = analytics.get("skill_cooccurrence", {})
 
     # Candidate skills from session state
-    candidate_skills = set(
-        s.lower()
-        for s in st.session_state.get("resume_skills", [])
-        if s
-    )
+    candidate_skills = {
+        s.lower() for s in st.session_state.get("resume_skills", []) if s
+    }
     has_resume = bool(candidate_skills)
 
     if not jobs and not skill_counts:
@@ -2297,10 +2333,7 @@ def show_knowledge_graph():
     G = nx.Graph()
 
     # Filter skills by demand threshold — uses all skills from real job data
-    active_skills = {
-        s for s, count in skill_counts.items()
-        if count >= min_job_count
-    }
+    active_skills = {s for s, count in skill_counts.items() if count >= min_job_count}
 
     # Add skill nodes
     for skill in active_skills:
@@ -2317,7 +2350,13 @@ def show_knowledge_graph():
 
     # Candidate node
     if has_resume:
-        G.add_node("YOU", node_type="candidate", category="Candidate", job_count=0, is_candidate=True)
+        G.add_node(
+            "YOU",
+            node_type="candidate",
+            category="Candidate",
+            job_count=0,
+            is_candidate=True,
+        )
         for skill in active_skills:
             if skill.lower() in candidate_skills:
                 G.add_edge("YOU", skill, edge_type="has_skill", weight=2)
@@ -2325,7 +2364,11 @@ def show_knowledge_graph():
     # Skill→Skill relation edges derived from job co-occurrence
     if show_skill_relations:
         for (s1, s2), count in skill_cooccurrence.items():
-            if count >= min_cooccurrence and s1 in active_skills and s2 in active_skills:
+            if (
+                count >= min_cooccurrence
+                and s1 in active_skills
+                and s2 in active_skills
+            ):
                 G.add_edge(s1, s2, edge_type="related", weight=count)
 
     # Job nodes + Skill→Job edges
@@ -2345,7 +2388,9 @@ def show_knowledge_graph():
 
             req = job.get("required_skills") or []
             pref = job.get("preferred_skills") or []
-            for skill in (req if isinstance(req, list) else []) + (pref if isinstance(pref, list) else []):
+            for skill in (req if isinstance(req, list) else []) + (
+                pref if isinstance(pref, list) else []
+            ):
                 if skill in active_skills:
                     G.add_edge(skill, job_id, edge_type="required", weight=1)
 
@@ -2353,7 +2398,9 @@ def show_knowledge_graph():
     # Compute layout
     # -------------------------------------------------------------------------
     if layout_algo == "spring":
-        pos = nx.spring_layout(G, k=4.0 / math.sqrt(max(G.number_of_nodes(), 1)), seed=42, iterations=100)
+        pos = nx.spring_layout(
+            G, k=4.0 / math.sqrt(max(G.number_of_nodes(), 1)), seed=42, iterations=100
+        )
     else:
         try:
             pos = nx.kamada_kawai_layout(G)
@@ -2371,9 +2418,9 @@ def show_knowledge_graph():
         edge_groups[data.get("edge_type", "related")].append((u, v))
 
     edge_styles = {
-        "has_skill":  {"color": "rgba(16,185,129,0.6)",  "dash": "solid",  "width": 2},
-        "related":    {"color": "rgba(148,163,184,0.6)",  "dash": "solid",  "width": 1},
-        "required":   {"color": "rgba(139,92,246,0.4)",  "dash": "solid",  "width": 1},
+        "has_skill": {"color": "rgba(16,185,129,0.6)", "dash": "solid", "width": 2},
+        "related": {"color": "rgba(148,163,184,0.6)", "dash": "solid", "width": 1},
+        "required": {"color": "rgba(139,92,246,0.4)", "dash": "solid", "width": 1},
     }
 
     for etype, edges in edge_groups.items():
@@ -2387,8 +2434,14 @@ def show_knowledge_graph():
         if ex:
             edge_traces.append(
                 go.Scatter(
-                    x=ex, y=ey, mode="lines",
-                    line=dict(color=style["color"], width=style["width"], dash=style["dash"]),
+                    x=ex,
+                    y=ey,
+                    mode="lines",
+                    line={
+                        "color": style["color"],
+                        "width": style["width"],
+                        "dash": style["dash"],
+                    },
                     hoverinfo="none",
                     showlegend=False,
                 )
@@ -2438,7 +2491,15 @@ def show_knowledge_graph():
             hover = f"{node}<br>Category: {cat}<br>Jobs: {count}<br>SKILL GAP"
 
         if group not in node_groups:
-            node_groups[group] = {"x": [], "y": [], "text": [], "hover": [], "size": [], "color": color, "symbol": symbol}
+            node_groups[group] = {
+                "x": [],
+                "y": [],
+                "text": [],
+                "hover": [],
+                "size": [],
+                "color": color,
+                "symbol": symbol,
+            }
         node_groups[group]["x"].append(x)
         node_groups[group]["y"].append(y)
         node_groups[group]["text"].append(node if ntype != "job" else "")
@@ -2449,17 +2510,18 @@ def show_knowledge_graph():
     for group, d in node_groups.items():
         node_traces.append(
             go.Scatter(
-                x=d["x"], y=d["y"],
+                x=d["x"],
+                y=d["y"],
                 mode="markers+text",
-                marker=dict(
-                    size=d["size"],
-                    color=d["color"],
-                    symbol=d["symbol"],
-                    line=dict(width=1.5, color="rgba(255,255,255,0.3)"),
-                ),
+                marker={
+                    "size": d["size"],
+                    "color": d["color"],
+                    "symbol": d["symbol"],
+                    "line": {"width": 1.5, "color": "rgba(255,255,255,0.3)"},
+                },
                 text=d["text"],
                 textposition="top center",
-                textfont=dict(size=9, color="rgba(255,255,255,0.85)"),
+                textfont={"size": 9, "color": "rgba(255,255,255,0.85)"},
                 hovertext=d["hover"],
                 hoverinfo="text",
                 name=group,
@@ -2473,23 +2535,23 @@ def show_knowledge_graph():
     fig = go.Figure(
         data=edge_traces + node_traces,
         layout=go.Layout(
-            title=dict(
-                text="Skill–Job Knowledge Graph",
-                font=dict(size=18, color="white"),
-                x=0.5,
-            ),
+            title={
+                "text": "Skill–Job Knowledge Graph",
+                "font": {"size": 18, "color": "white"},
+                "x": 0.5,
+            },
             showlegend=True,
-            legend=dict(
-                bgcolor="rgba(15,15,35,0.8)",
-                bordercolor="rgba(99,102,241,0.3)",
-                font=dict(color="white", size=11),
-            ),
+            legend={
+                "bgcolor": "rgba(15,15,35,0.8)",
+                "bordercolor": "rgba(99,102,241,0.3)",
+                "font": {"color": "white", "size": 11},
+            },
             hovermode="closest",
-            margin=dict(b=20, l=5, r=5, t=50),
+            margin={"b": 20, "l": 5, "r": 5, "t": 50},
             paper_bgcolor="#0f0f23",
             plot_bgcolor="#0f0f23",
-            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            xaxis={"showgrid": False, "zeroline": False, "showticklabels": False},
+            yaxis={"showgrid": False, "zeroline": False, "showticklabels": False},
             height=680,
         ),
     )
@@ -2502,18 +2564,25 @@ def show_knowledge_graph():
     st.divider()
     col_s1, col_s2, col_s3, col_s4 = st.columns(4)
     with col_s1:
-        st.metric("Skills in graph", G.number_of_nodes() - len(job_nodes_added) - (1 if has_resume else 0))
+        st.metric(
+            "Skills in graph",
+            G.number_of_nodes() - len(job_nodes_added) - (1 if has_resume else 0),
+        )
     with col_s2:
         st.metric("Relationships", G.number_of_edges())
     with col_s3:
         if has_resume:
             matched = sum(1 for s in active_skills if s.lower() in candidate_skills)
-            st.metric("Your skills matched", matched, f"of {len(active_skills)} tracked")
+            st.metric(
+                "Your skills matched", matched, f"of {len(active_skills)} tracked"
+            )
         else:
             st.metric("Jobs analysed", len(jobs))
     with col_s4:
         if has_resume:
-            gap_count = sum(1 for s in active_skills if s.lower() not in candidate_skills)
+            gap_count = sum(
+                1 for s in active_skills if s.lower() not in candidate_skills
+            )
             st.metric("Skill gaps", gap_count)
         else:
             st.metric("Total skill edges", G.number_of_edges())
@@ -2522,20 +2591,28 @@ def show_knowledge_graph():
     if has_resume:
         st.markdown("### Top Skill Gaps (by market demand)")
         gap_skills = [
-            {"Skill": s, "Category": SKILL_TO_CATEGORY.get(s, "Other"), "Jobs Requiring It": skill_counts.get(s, 0)}
+            {
+                "Skill": s,
+                "Category": SKILL_TO_CATEGORY.get(s, "Other"),
+                "Jobs Requiring It": skill_counts.get(s, 0),
+            }
             for s in active_skills
             if s.lower() not in candidate_skills
         ]
         gap_skills.sort(key=lambda x: x["Jobs Requiring It"], reverse=True)
         if gap_skills:
             import pandas as pd
-            st.dataframe(pd.DataFrame(gap_skills[:15]), use_container_width=True, hide_index=True)
+
+            st.dataframe(
+                pd.DataFrame(gap_skills[:15]), use_container_width=True, hide_index=True
+            )
         else:
             st.success("You have all tracked market skills!")
 
     # Legend help
     with st.expander("How to read this graph"):
-        st.markdown("""
+        st.markdown(
+            """
 - **Green nodes** — skills from your resume
 - **Red open nodes** — skills in job market you're missing (gaps)
 - **Coloured solid nodes** — market skills (no resume uploaded)
@@ -2546,7 +2623,8 @@ def show_knowledge_graph():
 - **Solid purple edges** — skill required by job
 - Node **size** = market demand (more jobs → bigger node)
 - Use the **legend** to isolate categories
-        """)
+        """
+        )
 
 
 def show_settings():
@@ -2557,12 +2635,14 @@ def show_settings():
     st.text_input("Backend API URL", value=BACKEND_URL)
 
     st.markdown("### Database Connection")
-    st.code("""
+    st.code(
+        """
 Host: localhost
 Port: 5432
 Database: killmatch
 User: postgres
-    """)
+    """
+    )
 
     st.markdown("### User Preferences")
     st.toggle("Enable email notifications", value=False)
