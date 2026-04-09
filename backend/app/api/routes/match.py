@@ -303,9 +303,7 @@ async def match_jobs(
                     print(f"⚠️ URL enrichment failed: {enrich_err}")
 
         except Exception as pinecone_err:
-            print(
-                f"⚠️ Pinecone query failed (falling back to database): {pinecone_err}"
-            )
+            print(f"⚠️ Pinecone query failed (falling back to database): {pinecone_err}")
 
             # Fallback: query PostgreSQL database directly
             try:

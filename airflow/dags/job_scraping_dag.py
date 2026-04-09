@@ -164,10 +164,12 @@ def validate_and_store(**context):
                     continue
 
                 conn.execute(
-                    text("""
+                    text(
+                        """
                         INSERT INTO jobs (title, company, description, source_url, source_platform, scraped_at, is_active)
                         VALUES (:title, :company, :description, :source_url, :source_platform, :scraped_at, true)
-                    """),
+                    """
+                    ),
                     {
                         **job,
                         "scraped_at": datetime.utcnow(),
@@ -212,7 +214,8 @@ def embed_new_jobs(**context):
 
     conn = psycopg2.connect(db_url)
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(
+        """
         SELECT id, title, company, location, description, source_url, source_platform
         FROM jobs
         WHERE embedding_id IS NULL AND is_active = true
@@ -220,7 +223,8 @@ def embed_new_jobs(**context):
         AND source_url NOT LIKE '%jobs/search%'
         ORDER BY scraped_at DESC
         LIMIT 500
-    """)
+    """
+    )
     rows = cur.fetchall()
 
     if not rows:

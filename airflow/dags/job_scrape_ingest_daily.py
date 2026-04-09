@@ -386,7 +386,8 @@ def embed_jobs_task(**context) -> int:
 
     conn = psycopg2.connect(_get_conn_string())
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(
+        """
         SELECT id, title, company, location, description, source_url, source_platform
         FROM jobs
         WHERE embedding_id IS NULL AND is_active = true
@@ -398,7 +399,8 @@ def embed_jobs_task(**context) -> int:
         AND company != 'Unknown'
         ORDER BY scraped_at DESC
         LIMIT 500
-        """)
+        """
+    )
     rows = cur.fetchall()
 
     if not rows:
