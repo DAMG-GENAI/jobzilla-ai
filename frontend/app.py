@@ -156,6 +156,88 @@ def fetch_jobs_from_db(limit=10):
         return []
 
 
+# ---------------------------------------------------------------------------
+# Skill normalisation
+# ---------------------------------------------------------------------------
+# Maps every known variant (casefolded) → canonical display name.
+# Add new aliases here; the rest of the code never needs to change.
+_SKILL_ALIASES: dict[str, str] = {
+    # Python
+    "python3": "Python",
+    "python 3": "Python",
+    # JavaScript
+    "js": "JavaScript",
+    "javascript": "JavaScript",
+    # TypeScript
+    "ts": "TypeScript",
+    "typescript": "TypeScript",
+    # Node.js
+    "node": "Node.js",
+    "nodejs": "Node.js",
+    "node.js": "Node.js",
+    # React
+    "reactjs": "React",
+    "react.js": "React",
+    # Vue
+    "vuejs": "Vue",
+    "vue.js": "Vue",
+    # Angular
+    "angularjs": "Angular",
+    "angular.js": "Angular",
+    # Go
+    "golang": "Go",
+    # C++
+    "cpp": "C++",
+    "c++": "C++",
+    # PostgreSQL
+    "postgres": "PostgreSQL",
+    "postgresql": "PostgreSQL",
+    "psql": "PostgreSQL",
+    # MongoDB
+    "mongo": "MongoDB",
+    "mongodb": "MongoDB",
+    # Elasticsearch
+    "elastic": "Elasticsearch",
+    "elasticsearch": "Elasticsearch",
+    # Kubernetes
+    "k8s": "Kubernetes",
+    "kubernetes": "Kubernetes",
+    # Machine Learning
+    "ml": "Machine Learning",
+    "machine learning": "Machine Learning",
+    # Deep Learning
+    "dl": "Deep Learning",
+    "deep learning": "Deep Learning",
+    # TensorFlow
+    "tf": "TensorFlow",
+    "tensorflow": "TensorFlow",
+    # PyTorch
+    "torch": "PyTorch",
+    "pytorch": "PyTorch",
+    # Cloud
+    "google cloud": "GCP",
+    "google cloud platform": "GCP",
+    "amazon web services": "AWS",
+    "microsoft azure": "Azure",
+    # CI/CD
+    "cicd": "CI/CD",
+    "ci cd": "CI/CD",
+    "ci/cd": "CI/CD",
+    # REST
+    "restful": "REST",
+    "rest api": "REST",
+    # SQL
+    "sql": "SQL",
+    # Git
+    "git": "Git",
+}
+
+
+def _normalize_skill(skill: str) -> str:
+    """Return the canonical display name for a skill string."""
+    return _SKILL_ALIASES.get(skill.strip().casefold(), skill.strip())
+
+
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def fetch_analytics_data():
     """Fetch comprehensive analytics data from the database."""
@@ -218,19 +300,20 @@ def fetch_analytics_data():
             }
             result["jobs"].append(job)
 
-            # Count skills
+            # Count skills — normalize then dedupe so "python"/"Python3" etc. merge
             req_skills = row[5] if isinstance(row[5], list) else []
             pref_skills = row[6] if isinstance(row[6], list) else []
-            all_job_skills = [
+            raw_skills = [
                 s for s in req_skills + pref_skills if s and isinstance(s, str)
             ]
+            all_job_skills = list(
+                dict.fromkeys(_normalize_skill(s) for s in raw_skills)
+            )  # normalize + dedupe, preserve order
             for skill in all_job_skills:
                 skill_counter[skill] = skill_counter.get(skill, 0) + 1
 
             # Co-occurrence: every pair of skills in this job
-            unique_skills = list(
-                dict.fromkeys(all_job_skills)
-            )  # dedupe, preserve order
+            unique_skills = all_job_skills  # already deduped above
             for i in range(len(unique_skills)):
                 for j in range(i + 1, len(unique_skills)):
                     pair = tuple(sorted([unique_skills[i], unique_skills[j]]))
