@@ -5,6 +5,7 @@ Real analytics from Cloud SQL database.
 """
 
 import os
+import re
 from collections import Counter
 from datetime import datetime
 
@@ -12,6 +13,113 @@ from fastapi import APIRouter
 from sqlalchemy import create_engine, text
 
 router = APIRouter()
+
+# ---------------------------------------------------------------------------
+# Skill normalisation
+# ---------------------------------------------------------------------------
+_SKILL_ALIASES: dict[str, str] = {
+    "python3": "Python",
+    "python 3": "Python",
+    "js": "JavaScript",
+    "javascript": "JavaScript",
+    "ts": "TypeScript",
+    "typescript": "TypeScript",
+    "node": "Node.js",
+    "nodejs": "Node.js",
+    "node.js": "Node.js",
+    "reactjs": "React",
+    "react.js": "React",
+    "vuejs": "Vue",
+    "vue.js": "Vue",
+    "angularjs": "Angular",
+    "angular.js": "Angular",
+    "golang": "Go",
+    "cpp": "C++",
+    "c++": "C++",
+    "postgres": "PostgreSQL",
+    "postgresql": "PostgreSQL",
+    "psql": "PostgreSQL",
+    "mongo": "MongoDB",
+    "mongodb": "MongoDB",
+    "elastic": "Elasticsearch",
+    "elasticsearch": "Elasticsearch",
+    "k8s": "Kubernetes",
+    "kubernetes": "Kubernetes",
+    "ml": "Machine Learning",
+    "machine learning": "Machine Learning",
+    "dl": "Deep Learning",
+    "deep learning": "Deep Learning",
+    "tf": "TensorFlow",
+    "tensorflow": "TensorFlow",
+    "torch": "PyTorch",
+    "pytorch": "PyTorch",
+    "google cloud": "GCP",
+    "google cloud platform": "GCP",
+    "amazon web services": "AWS",
+    "microsoft azure": "Azure",
+    "cicd": "CI/CD",
+    "ci cd": "CI/CD",
+    "ci/cd": "CI/CD",
+    "restful": "REST",
+    "rest api": "REST",
+    "sql": "SQL",
+    "git": "Git",
+}
+
+_BOUNDARY_SKILLS = {
+    "Go": r"\bgo\b(?:lang)?",
+    "R": r"\bR\b",
+    "C++": r"\bc\+\+\b",
+    "REST": r"\bREST\s?(?:ful|API)\b",
+}
+
+_SAFE_SKILLS = [
+    "Python",
+    "JavaScript",
+    "TypeScript",
+    "Java",
+    "Rust",
+    "Ruby",
+    "React",
+    "Node.js",
+    "Angular",
+    "Vue",
+    "Django",
+    "Flask",
+    "FastAPI",
+    "Spring",
+    "AWS",
+    "GCP",
+    "Azure",
+    "Docker",
+    "Kubernetes",
+    "Terraform",
+    "PostgreSQL",
+    "MySQL",
+    "MongoDB",
+    "Redis",
+    "Elasticsearch",
+    "Machine Learning",
+    "Deep Learning",
+    "NLP",
+    "SQL",
+    "Git",
+    "Linux",
+    "TensorFlow",
+    "PyTorch",
+    "Pandas",
+    "Spark",
+    "Airflow",
+    "Kafka",
+    "GraphQL",
+    "CI/CD",
+    "Agile",
+    "Scrum",
+]
+
+
+def _normalize_skill(skill: str) -> str:
+    return _SKILL_ALIASES.get(skill.strip().casefold(), skill.strip())
 
 
 def _get_engine():
@@ -267,4 +375,63 @@ async def get_user_analytics(user_id: str):
         "best_match_score": best_score,
         "resumes_uploaded": resume_count or 0,
         "cover_letters_generated": cover_letter_count or 0,
+    }
+
+
+@router.get("/analytics/skills/graph")
+async def get_skills_graph(limit: int = 500):
+    """
+    Returns skill_counts and skill_cooccurrence derived from real job data.
+    Skills are normalised (casefold + alias map) and deduped per job before
+    counting so variants like 'python'/'Python3'/'PYTHON' merge into one node.
+    """
+    engine = _get_engine()
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT required_skills, preferred_skills, description
+                FROM jobs
+                WHERE is_active = true
+                ORDER BY scraped_at DESC
+                LIMIT :limit
+                """),
+            {"limit": limit},
+        ).fetchall()
+
+    skill_counts: dict[str, int] = {}
+    cooccurrence: dict[str, int] = {}  # serialised as "SkillA|||SkillB"
+
+    for req_skills, pref_skills, description in rows:
+        req = req_skills if isinstance(req_skills, list) else []
+        pref = pref_skills if isinstance(pref_skills, list) else []
+        raw = [s for s in req + pref if s and isinstance(s, str)]
+
+        # Normalise + dedupe per job
+        job_skills = list(dict.fromkeys(_normalize_skill(s) for s in raw))
+
+        # Fall back to description parsing when arrays are empty
+        if not raw and description:
+            desc_lower = description.lower()
+            desc_skills = []
+            for s in _SAFE_SKILLS:
+                if s.lower() in desc_lower:
+                    desc_skills.append(s)
+            for canonical, pattern in _BOUNDARY_SKILLS.items():
+                if re.search(pattern, description, re.IGNORECASE):
+                    desc_skills.append(canonical)
+            job_skills = list(dict.fromkeys(desc_skills))
+
+        for skill in job_skills:
+            skill_counts[skill] = skill_counts.get(skill, 0) + 1
+
+        for i in range(len(job_skills)):
+            for j in range(i + 1, len(job_skills)):
+                pair = "|||".join(sorted([job_skills[i], job_skills[j]]))
+                cooccurrence[pair] = cooccurrence.get(pair, 0) + 1
+
+    return {
+        "skill_counts": skill_counts,
+        "skill_cooccurrence": cooccurrence,
+        "total_jobs_analyzed": len(rows),
     }

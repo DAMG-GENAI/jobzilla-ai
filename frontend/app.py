@@ -197,9 +197,6 @@ def fetch_analytics_data():
         """)
 
         skill_counter = {}
-        cooccurrence = (
-            {}
-        )  # (skill_a, skill_b) → count, skill_a < skill_b alphabetically
 
         for row in cur.fetchall():
             job = {
@@ -218,96 +215,12 @@ def fetch_analytics_data():
             }
             result["jobs"].append(job)
 
-            # Count skills
+            # Count skills (used by Analytics page)
             req_skills = row[5] if isinstance(row[5], list) else []
             pref_skills = row[6] if isinstance(row[6], list) else []
-            all_job_skills = [
-                s for s in req_skills + pref_skills if s and isinstance(s, str)
-            ]
-            for skill in all_job_skills:
-                skill_counter[skill] = skill_counter.get(skill, 0) + 1
-
-            # Co-occurrence: every pair of skills in this job
-            unique_skills = list(
-                dict.fromkeys(all_job_skills)
-            )  # dedupe, preserve order
-            for i in range(len(unique_skills)):
-                for j in range(i + 1, len(unique_skills)):
-                    pair = tuple(sorted([unique_skills[i], unique_skills[j]]))
-                    cooccurrence[pair] = cooccurrence.get(pair, 0) + 1
-
-            # If no explicit skills, extract from description
-            if not req_skills and not pref_skills and row[3]:
-                desc_lower = (row[3] or "").lower()
-                # Skills that need word boundary matching to avoid false positives
-                # e.g. "Go" matches "going", "REST" matches "restaurant"
-                import re
-
-                boundary_skills = {
-                    "Go": r"\bgo\b(?:lang)?",
-                    "R": r"\bR\b",
-                    r"C\+\+": r"\bc\+\+\b",
-                    "REST": r"\bREST\s?(?:ful|API)\b",
-                }
-                # Skills safe to match with simple `in` check
-                safe_skills = [
-                    "Python",
-                    "JavaScript",
-                    "TypeScript",
-                    "Java",
-                    "Rust",
-                    "Ruby",
-                    "React",
-                    "Node.js",
-                    "Angular",
-                    "Vue",
-                    "Django",
-                    "Flask",
-                    "FastAPI",
-                    "Spring",
-                    "AWS",
-                    "GCP",
-                    "Azure",
-                    "Docker",
-                    "Kubernetes",
-                    "Terraform",
-                    "PostgreSQL",
-                    "MySQL",
-                    "MongoDB",
-                    "Redis",
-                    "Elasticsearch",
-                    "Machine Learning",
-                    "Deep Learning",
-                    "NLP",
-                    "SQL",
-                    "Git",
-                    "Linux",
-                    "TensorFlow",
-                    "PyTorch",
-                    "Pandas",
-                    "Spark",
-                    "Airflow",
-                    "Kafka",
-                    "GraphQL",
-                    "CI/CD",
-                    "Agile",
-                    "Scrum",
-                ]
-                desc_skills = []
-                for s in safe_skills:
-                    if s.lower() in desc_lower:
-                        skill_counter[s] = skill_counter.get(s, 0) + 1
-                        desc_skills.append(s)
-                for skill_name, pattern in boundary_skills.items():
-                    if re.search(pattern, row[3] or "", re.IGNORECASE):
-                        skill_counter[skill_name] = skill_counter.get(skill_name, 0) + 1
-                        desc_skills.append(skill_name)
-
-                # Co-occurrence from description-parsed skills
-                for i in range(len(desc_skills)):
-                    for j in range(i + 1, len(desc_skills)):
-                        pair = tuple(sorted([desc_skills[i], desc_skills[j]]))
-                        cooccurrence[pair] = cooccurrence.get(pair, 0) + 1
+            for skill in req_skills + pref_skills:
+                if skill and isinstance(skill, str):
+                    skill_counter[skill] = skill_counter.get(skill, 0) + 1
 
             # Salary data
             if row[7] or row[8]:
@@ -336,7 +249,6 @@ def fetch_analytics_data():
             result["location_data"][loc] = result["location_data"].get(loc, 0) + 1
 
         result["skill_counts"] = skill_counter
-        result["skill_cooccurrence"] = cooccurrence
 
         cur.close()
         conn.close()
