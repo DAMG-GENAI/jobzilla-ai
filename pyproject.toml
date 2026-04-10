@@ -82,6 +82,9 @@ airflow = [
     "apache-airflow-providers-slack>=8.5.0",
 ]
 
+[tool.black]
+target-version = ["py311"]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100

@@ -197,6 +197,9 @@ def fetch_analytics_data():
         """)
 
         skill_counter = {}
+        cooccurrence = (
+            {}
+        )  # (skill_a, skill_b) → count, skill_a < skill_b alphabetically
 
         for row in cur.fetchall():
             job = {
@@ -218,9 +221,20 @@ def fetch_analytics_data():
             # Count skills
             req_skills = row[5] if isinstance(row[5], list) else []
             pref_skills = row[6] if isinstance(row[6], list) else []
-            for skill in req_skills + pref_skills:
-                if skill and isinstance(skill, str):
-                    skill_counter[skill] = skill_counter.get(skill, 0) + 1
+            all_job_skills = [
+                s for s in req_skills + pref_skills if s and isinstance(s, str)
+            ]
+            for skill in all_job_skills:
+                skill_counter[skill] = skill_counter.get(skill, 0) + 1
+
+            # Co-occurrence: every pair of skills in this job
+            unique_skills = list(
+                dict.fromkeys(all_job_skills)
+            )  # dedupe, preserve order
+            for i in range(len(unique_skills)):
+                for j in range(i + 1, len(unique_skills)):
+                    pair = tuple(sorted([unique_skills[i], unique_skills[j]]))
+                    cooccurrence[pair] = cooccurrence.get(pair, 0) + 1
 
             # If no explicit skills, extract from description
             if not req_skills and not pref_skills and row[3]:
@@ -279,12 +293,21 @@ def fetch_analytics_data():
                     "Agile",
                     "Scrum",
                 ]
+                desc_skills = []
                 for s in safe_skills:
                     if s.lower() in desc_lower:
                         skill_counter[s] = skill_counter.get(s, 0) + 1
+                        desc_skills.append(s)
                 for skill_name, pattern in boundary_skills.items():
                     if re.search(pattern, row[3] or "", re.IGNORECASE):
                         skill_counter[skill_name] = skill_counter.get(skill_name, 0) + 1
+                        desc_skills.append(skill_name)
+
+                # Co-occurrence from description-parsed skills
+                for i in range(len(desc_skills)):
+                    for j in range(i + 1, len(desc_skills)):
+                        pair = tuple(sorted([desc_skills[i], desc_skills[j]]))
+                        cooccurrence[pair] = cooccurrence.get(pair, 0) + 1
 
             # Salary data
             if row[7] or row[8]:
@@ -313,6 +336,7 @@ def fetch_analytics_data():
             result["location_data"][loc] = result["location_data"].get(loc, 0) + 1
 
         result["skill_counts"] = skill_counter
+        result["skill_cooccurrence"] = cooccurrence
 
         cur.close()
         conn.close()
@@ -436,6 +460,7 @@ def main():
             "✉️ Cover Letter",
             "📈 Skill Roadmap",
             "📊 Analytics",
+            "🧠 Knowledge Graph",
             "⚙️ Settings",
         ]
         # Handle programmatic navigation
@@ -498,6 +523,8 @@ def main():
         show_skill_roadmap()
     elif page == "📊 Analytics":
         show_analytics()
+    elif page == "🧠 Knowledge Graph":
+        show_knowledge_graph()
     elif page == "⚙️ Settings":
         show_settings()
 
@@ -2185,6 +2212,413 @@ def show_analytics():
         df_jobs = pd.DataFrame(job_data)
         df_jobs = df_jobs.sort_values(by="Score", ascending=False)
         st.dataframe(df_jobs, use_container_width=True, hide_index=True)
+
+
+def show_knowledge_graph():
+    """Skill-Job-Candidate Knowledge Graph page."""
+    import math
+
+    import networkx as nx
+    import plotly.graph_objects as go
+
+    st.markdown(
+        '<h1 class="main-header">🧠 Knowledge Graph</h1>', unsafe_allow_html=True
+    )
+    st.caption(
+        "Interactive skill-job relationship map. Green = your skills, Red = gaps, Blue = market skills, Purple = jobs."
+    )
+
+    # -------------------------------------------------------------------------
+    # Skill category definitions
+    # -------------------------------------------------------------------------
+    SKILL_CATEGORIES = {
+        "Languages": [
+            "Python",
+            "JavaScript",
+            "TypeScript",
+            "Java",
+            "Go",
+            "Rust",
+            "Ruby",
+            "C++",
+            "R",
+        ],
+        "Frontend": ["React", "Angular", "Vue", "Node.js", "GraphQL"],
+        "Backend": ["Django", "Flask", "FastAPI", "Spring", "REST"],
+        "Cloud": ["AWS", "GCP", "Azure"],
+        "DevOps": [
+            "Docker",
+            "Kubernetes",
+            "CI/CD",
+            "Terraform",
+            "Linux",
+            "Git",
+            "Airflow",
+            "Kafka",
+        ],
+        "Data": [
+            "SQL",
+            "PostgreSQL",
+            "MySQL",
+            "MongoDB",
+            "Redis",
+            "Elasticsearch",
+            "Spark",
+            "Pandas",
+        ],
+        "AI/ML": ["Machine Learning", "Deep Learning", "NLP", "TensorFlow", "PyTorch"],
+        "Process": ["Agile", "Scrum"],
+    }
+    CATEGORY_COLORS = {
+        "Languages": "#6366f1",
+        "Frontend": "#f59e0b",
+        "Backend": "#10b981",
+        "Cloud": "#3b82f6",
+        "DevOps": "#8b5cf6",
+        "Data": "#06b6d4",
+        "AI/ML": "#ec4899",
+        "Process": "#84cc16",
+    }
+    SKILL_TO_CATEGORY = {
+        skill: cat for cat, skills in SKILL_CATEGORIES.items() for skill in skills
+    }
+
+    # -------------------------------------------------------------------------
+    # Controls
+    # -------------------------------------------------------------------------
+    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([2, 1, 1])
+    with col_ctrl1:
+        min_job_count = st.slider(
+            "Min jobs per skill (filter low-demand skills)", 1, 100, 10
+        )
+        min_cooccurrence = st.slider(
+            "Min co-occurrence for skill relationships", 1, 500, 10
+        )
+    with col_ctrl2:
+        show_jobs = st.checkbox("Show job nodes", value=False)
+        max_jobs = st.number_input("Max jobs shown", 5, 30, 10, disabled=not show_jobs)
+    with col_ctrl3:
+        show_skill_relations = st.checkbox("Show skill relationships", value=True)
+        layout_algo = st.selectbox("Layout", ["kamada_kawai", "spring"])
+
+    st.divider()
+
+    # -------------------------------------------------------------------------
+    # Load data
+    # -------------------------------------------------------------------------
+    with st.spinner("Building knowledge graph from job database..."):
+        analytics = fetch_analytics_data()
+
+    jobs = analytics.get("jobs", [])
+    skill_counts = analytics.get("skill_counts", {})
+    skill_cooccurrence = analytics.get("skill_cooccurrence", {})
+
+    # Candidate skills from session state
+    candidate_skills = {
+        s.lower() for s in st.session_state.get("resume_skills", []) if s
+    }
+    has_resume = bool(candidate_skills)
+
+    if not jobs and not skill_counts:
+        st.warning("No job data found. Run the Airflow scraping DAG to populate jobs.")
+        return
+
+    # -------------------------------------------------------------------------
+    # Build NetworkX graph
+    # -------------------------------------------------------------------------
+    G = nx.Graph()
+
+    # Filter skills by demand threshold — uses all skills from real job data
+    active_skills = {s for s, count in skill_counts.items() if count >= min_job_count}
+
+    # Add skill nodes
+    for skill in active_skills:
+        count = skill_counts.get(skill, 0)
+        cat = SKILL_TO_CATEGORY.get(skill, "Other")
+        is_candidate = skill.lower() in candidate_skills
+        G.add_node(
+            skill,
+            node_type="skill",
+            category=cat,
+            job_count=count,
+            is_candidate=is_candidate,
+        )
+
+    # Candidate node
+    if has_resume:
+        G.add_node(
+            "YOU",
+            node_type="candidate",
+            category="Candidate",
+            job_count=0,
+            is_candidate=True,
+        )
+        for skill in active_skills:
+            if skill.lower() in candidate_skills:
+                G.add_edge("YOU", skill, edge_type="has_skill", weight=2)
+
+    # Skill→Skill relation edges derived from job co-occurrence
+    if show_skill_relations:
+        for (s1, s2), count in skill_cooccurrence.items():
+            if (
+                count >= min_cooccurrence
+                and s1 in active_skills
+                and s2 in active_skills
+            ):
+                G.add_edge(s1, s2, edge_type="related", weight=count)
+
+    # Job nodes + Skill→Job edges
+    job_nodes_added = []
+    if show_jobs and jobs:
+        for job in jobs[: int(max_jobs)]:
+            job_id = f"job_{job['id']}"
+            G.add_node(
+                job_id,
+                node_type="job",
+                label=f"{job['title'][:30]}\n@ {job['company'][:20]}",
+                category="Job",
+                job_count=0,
+                is_candidate=False,
+            )
+            job_nodes_added.append(job_id)
+
+            req = job.get("required_skills") or []
+            pref = job.get("preferred_skills") or []
+            for skill in (req if isinstance(req, list) else []) + (
+                pref if isinstance(pref, list) else []
+            ):
+                if skill in active_skills:
+                    G.add_edge(skill, job_id, edge_type="required", weight=1)
+
+    # -------------------------------------------------------------------------
+    # Compute layout
+    # -------------------------------------------------------------------------
+    if layout_algo == "spring":
+        pos = nx.spring_layout(
+            G, k=4.0 / math.sqrt(max(G.number_of_nodes(), 1)), seed=42, iterations=100
+        )
+    else:
+        try:
+            pos = nx.kamada_kawai_layout(G)
+        except Exception:
+            pos = nx.spring_layout(G, seed=42)
+
+    # -------------------------------------------------------------------------
+    # Build Plotly traces
+    # -------------------------------------------------------------------------
+    edge_traces = []
+
+    # Separate edges by type for styling
+    edge_groups = {"has_skill": [], "related": [], "required": []}
+    for u, v, data in G.edges(data=True):
+        edge_groups[data.get("edge_type", "related")].append((u, v))
+
+    edge_styles = {
+        "has_skill": {"color": "rgba(16,185,129,0.6)", "dash": "solid", "width": 2},
+        "related": {"color": "rgba(148,163,184,0.6)", "dash": "solid", "width": 1},
+        "required": {"color": "rgba(139,92,246,0.4)", "dash": "solid", "width": 1},
+    }
+
+    for etype, edges in edge_groups.items():
+        style = edge_styles[etype]
+        ex, ey = [], []
+        for u, v in edges:
+            x0, y0 = pos[u]
+            x1, y1 = pos[v]
+            ex += [x0, x1, None]
+            ey += [y0, y1, None]
+        if ex:
+            edge_traces.append(
+                go.Scatter(
+                    x=ex,
+                    y=ey,
+                    mode="lines",
+                    line={
+                        "color": style["color"],
+                        "width": style["width"],
+                        "dash": style["dash"],
+                    },
+                    hoverinfo="none",
+                    showlegend=False,
+                )
+            )
+
+    # Node traces — one per visual group so legend works
+    node_groups = {}  # key → (xs, ys, texts, hover_texts, sizes, colors, symbols)
+
+    for node, data in G.nodes(data=True):
+        x, y = pos[node]
+        ntype = data.get("node_type", "skill")
+        cat = data.get("category", "Other")
+        count = data.get("job_count", 0)
+        is_cand = data.get("is_candidate", False)
+        label = data.get("label", node)
+
+        if ntype == "candidate":
+            group = "YOU"
+            color = "#fbbf24"
+            size = 28
+            symbol = "star"
+            hover = "YOU (Candidate)"
+        elif ntype == "job":
+            group = "Job"
+            color = "#a78bfa"
+            size = 14
+            symbol = "diamond"
+            hover = label.replace("\n", " ")
+        elif is_cand:
+            group = f"{cat} (your skill)"
+            color = "#10b981"
+            size = max(14, min(28, 10 + count // 3))
+            symbol = "circle"
+            hover = f"{node}<br>Category: {cat}<br>Jobs: {count}<br>YOUR SKILL"
+        elif not has_resume:
+            group = cat
+            color = CATEGORY_COLORS.get(cat, "#94a3b8")
+            size = max(12, min(26, 8 + count // 3))
+            symbol = "circle"
+            hover = f"{node}<br>Category: {cat}<br>Jobs: {count}"
+        else:
+            # Resume uploaded but this skill is a gap
+            group = f"{cat} (gap)"
+            color = "#ef4444"
+            size = max(12, min(26, 8 + count // 3))
+            symbol = "circle-open"
+            hover = f"{node}<br>Category: {cat}<br>Jobs: {count}<br>SKILL GAP"
+
+        if group not in node_groups:
+            node_groups[group] = {
+                "x": [],
+                "y": [],
+                "text": [],
+                "hover": [],
+                "size": [],
+                "color": color,
+                "symbol": symbol,
+            }
+        node_groups[group]["x"].append(x)
+        node_groups[group]["y"].append(y)
+        node_groups[group]["text"].append(node if ntype != "job" else "")
+        node_groups[group]["hover"].append(hover)
+        node_groups[group]["size"].append(size)
+
+    node_traces = []
+    for group, d in node_groups.items():
+        node_traces.append(
+            go.Scatter(
+                x=d["x"],
+                y=d["y"],
+                mode="markers+text",
+                marker={
+                    "size": d["size"],
+                    "color": d["color"],
+                    "symbol": d["symbol"],
+                    "line": {"width": 1.5, "color": "rgba(255,255,255,0.3)"},
+                },
+                text=d["text"],
+                textposition="top center",
+                textfont={"size": 9, "color": "rgba(255,255,255,0.85)"},
+                hovertext=d["hover"],
+                hoverinfo="text",
+                name=group,
+                showlegend=True,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # Compose figure
+    # -------------------------------------------------------------------------
+    fig = go.Figure(
+        data=edge_traces + node_traces,
+        layout=go.Layout(
+            title={
+                "text": "Skill–Job Knowledge Graph",
+                "font": {"size": 18, "color": "white"},
+                "x": 0.5,
+            },
+            showlegend=True,
+            legend={
+                "bgcolor": "rgba(15,15,35,0.8)",
+                "bordercolor": "rgba(99,102,241,0.3)",
+                "font": {"color": "white", "size": 11},
+            },
+            hovermode="closest",
+            margin={"b": 20, "l": 5, "r": 5, "t": 50},
+            paper_bgcolor="#0f0f23",
+            plot_bgcolor="#0f0f23",
+            xaxis={"showgrid": False, "zeroline": False, "showticklabels": False},
+            yaxis={"showgrid": False, "zeroline": False, "showticklabels": False},
+            height=680,
+        ),
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # -------------------------------------------------------------------------
+    # Stats below graph
+    # -------------------------------------------------------------------------
+    st.divider()
+    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+    with col_s1:
+        st.metric(
+            "Skills in graph",
+            G.number_of_nodes() - len(job_nodes_added) - (1 if has_resume else 0),
+        )
+    with col_s2:
+        st.metric("Relationships", G.number_of_edges())
+    with col_s3:
+        if has_resume:
+            matched = sum(1 for s in active_skills if s.lower() in candidate_skills)
+            st.metric(
+                "Your skills matched", matched, f"of {len(active_skills)} tracked"
+            )
+        else:
+            st.metric("Jobs analysed", len(jobs))
+    with col_s4:
+        if has_resume:
+            gap_count = sum(
+                1 for s in active_skills if s.lower() not in candidate_skills
+            )
+            st.metric("Skill gaps", gap_count)
+        else:
+            st.metric("Total skill edges", G.number_of_edges())
+
+    # Top gaps table
+    if has_resume:
+        st.markdown("### Top Skill Gaps (by market demand)")
+        gap_skills = [
+            {
+                "Skill": s,
+                "Category": SKILL_TO_CATEGORY.get(s, "Other"),
+                "Jobs Requiring It": skill_counts.get(s, 0),
+            }
+            for s in active_skills
+            if s.lower() not in candidate_skills
+        ]
+        gap_skills.sort(key=lambda x: x["Jobs Requiring It"], reverse=True)
+        if gap_skills:
+            import pandas as pd
+
+            st.dataframe(
+                pd.DataFrame(gap_skills[:15]), use_container_width=True, hide_index=True
+            )
+        else:
+            st.success("You have all tracked market skills!")
+
+    # Legend help
+    with st.expander("How to read this graph"):
+        st.markdown("""
+- **Green nodes** — skills from your resume
+- **Red open nodes** — skills in job market you're missing (gaps)
+- **Coloured solid nodes** — market skills (no resume uploaded)
+- **Purple diamond** — job listings (toggle on with checkbox)
+- **Gold star** — YOU (candidate node)
+- **Dotted edges** — related/prerequisite skills
+- **Solid green edges** — skills you have
+- **Solid purple edges** — skill required by job
+- Node **size** = market demand (more jobs → bigger node)
+- Use the **legend** to isolate categories
+        """)
 
 
 def show_settings():
