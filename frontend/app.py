@@ -156,88 +156,6 @@ def fetch_jobs_from_db(limit=10):
         return []
 
 
-# ---------------------------------------------------------------------------
-# Skill normalisation
-# ---------------------------------------------------------------------------
-# Maps every known variant (casefolded) → canonical display name.
-# Add new aliases here; the rest of the code never needs to change.
-_SKILL_ALIASES: dict[str, str] = {
-    # Python
-    "python3": "Python",
-    "python 3": "Python",
-    # JavaScript
-    "js": "JavaScript",
-    "javascript": "JavaScript",
-    # TypeScript
-    "ts": "TypeScript",
-    "typescript": "TypeScript",
-    # Node.js
-    "node": "Node.js",
-    "nodejs": "Node.js",
-    "node.js": "Node.js",
-    # React
-    "reactjs": "React",
-    "react.js": "React",
-    # Vue
-    "vuejs": "Vue",
-    "vue.js": "Vue",
-    # Angular
-    "angularjs": "Angular",
-    "angular.js": "Angular",
-    # Go
-    "golang": "Go",
-    # C++
-    "cpp": "C++",
-    "c++": "C++",
-    # PostgreSQL
-    "postgres": "PostgreSQL",
-    "postgresql": "PostgreSQL",
-    "psql": "PostgreSQL",
-    # MongoDB
-    "mongo": "MongoDB",
-    "mongodb": "MongoDB",
-    # Elasticsearch
-    "elastic": "Elasticsearch",
-    "elasticsearch": "Elasticsearch",
-    # Kubernetes
-    "k8s": "Kubernetes",
-    "kubernetes": "Kubernetes",
-    # Machine Learning
-    "ml": "Machine Learning",
-    "machine learning": "Machine Learning",
-    # Deep Learning
-    "dl": "Deep Learning",
-    "deep learning": "Deep Learning",
-    # TensorFlow
-    "tf": "TensorFlow",
-    "tensorflow": "TensorFlow",
-    # PyTorch
-    "torch": "PyTorch",
-    "pytorch": "PyTorch",
-    # Cloud
-    "google cloud": "GCP",
-    "google cloud platform": "GCP",
-    "amazon web services": "AWS",
-    "microsoft azure": "Azure",
-    # CI/CD
-    "cicd": "CI/CD",
-    "ci cd": "CI/CD",
-    "ci/cd": "CI/CD",
-    # REST
-    "restful": "REST",
-    "rest api": "REST",
-    # SQL
-    "sql": "SQL",
-    # Git
-    "git": "Git",
-}
-
-
-def _normalize_skill(skill: str) -> str:
-    """Return the canonical display name for a skill string."""
-    return _SKILL_ALIASES.get(skill.strip().casefold(), skill.strip())
-
-
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def fetch_analytics_data():
     """Fetch comprehensive analytics data from the database."""
@@ -279,9 +197,6 @@ def fetch_analytics_data():
         """)
 
         skill_counter = {}
-        cooccurrence = (
-            {}
-        )  # (skill_a, skill_b) → count, skill_a < skill_b alphabetically
 
         for row in cur.fetchall():
             job = {
@@ -300,97 +215,12 @@ def fetch_analytics_data():
             }
             result["jobs"].append(job)
 
-            # Count skills — normalize then dedupe so "python"/"Python3" etc. merge
+            # Count skills (used by Analytics page)
             req_skills = row[5] if isinstance(row[5], list) else []
             pref_skills = row[6] if isinstance(row[6], list) else []
-            raw_skills = [
-                s for s in req_skills + pref_skills if s and isinstance(s, str)
-            ]
-            all_job_skills = list(
-                dict.fromkeys(_normalize_skill(s) for s in raw_skills)
-            )  # normalize + dedupe, preserve order
-            for skill in all_job_skills:
-                skill_counter[skill] = skill_counter.get(skill, 0) + 1
-
-            # Co-occurrence: every pair of skills in this job
-            unique_skills = all_job_skills  # already deduped above
-            for i in range(len(unique_skills)):
-                for j in range(i + 1, len(unique_skills)):
-                    pair = tuple(sorted([unique_skills[i], unique_skills[j]]))
-                    cooccurrence[pair] = cooccurrence.get(pair, 0) + 1
-
-            # If no explicit skills, extract from description
-            if not req_skills and not pref_skills and row[3]:
-                desc_lower = (row[3] or "").lower()
-                # Skills that need word boundary matching to avoid false positives
-                # e.g. "Go" matches "going", "REST" matches "restaurant"
-                import re
-
-                boundary_skills = {
-                    "Go": r"\bgo\b(?:lang)?",
-                    "R": r"\bR\b",
-                    r"C\+\+": r"\bc\+\+\b",
-                    "REST": r"\bREST\s?(?:ful|API)\b",
-                }
-                # Skills safe to match with simple `in` check
-                safe_skills = [
-                    "Python",
-                    "JavaScript",
-                    "TypeScript",
-                    "Java",
-                    "Rust",
-                    "Ruby",
-                    "React",
-                    "Node.js",
-                    "Angular",
-                    "Vue",
-                    "Django",
-                    "Flask",
-                    "FastAPI",
-                    "Spring",
-                    "AWS",
-                    "GCP",
-                    "Azure",
-                    "Docker",
-                    "Kubernetes",
-                    "Terraform",
-                    "PostgreSQL",
-                    "MySQL",
-                    "MongoDB",
-                    "Redis",
-                    "Elasticsearch",
-                    "Machine Learning",
-                    "Deep Learning",
-                    "NLP",
-                    "SQL",
-                    "Git",
-                    "Linux",
-                    "TensorFlow",
-                    "PyTorch",
-                    "Pandas",
-                    "Spark",
-                    "Airflow",
-                    "Kafka",
-                    "GraphQL",
-                    "CI/CD",
-                    "Agile",
-                    "Scrum",
-                ]
-                desc_skills = []
-                for s in safe_skills:
-                    if s.lower() in desc_lower:
-                        skill_counter[s] = skill_counter.get(s, 0) + 1
-                        desc_skills.append(s)
-                for skill_name, pattern in boundary_skills.items():
-                    if re.search(pattern, row[3] or "", re.IGNORECASE):
-                        skill_counter[skill_name] = skill_counter.get(skill_name, 0) + 1
-                        desc_skills.append(skill_name)
-
-                # Co-occurrence from description-parsed skills
-                for i in range(len(desc_skills)):
-                    for j in range(i + 1, len(desc_skills)):
-                        pair = tuple(sorted([desc_skills[i], desc_skills[j]]))
-                        cooccurrence[pair] = cooccurrence.get(pair, 0) + 1
+            for skill in req_skills + pref_skills:
+                if skill and isinstance(skill, str):
+                    skill_counter[skill] = skill_counter.get(skill, 0) + 1
 
             # Salary data
             if row[7] or row[8]:
@@ -419,7 +249,6 @@ def fetch_analytics_data():
             result["location_data"][loc] = result["location_data"].get(loc, 0) + 1
 
         result["skill_counts"] = skill_counter
-        result["skill_cooccurrence"] = cooccurrence
 
         cur.close()
         conn.close()
