@@ -383,13 +383,11 @@ _TECH_TERMS = {
 }
 
 # Also match these patterns dynamically from the JD
-_TECH_PATTERNS = re.compile(
-    r"""(?ix)
+_TECH_PATTERNS = re.compile(r"""(?ix)
     [A-Z]{2,6}              # Acronyms: AWS, GCP, SQL, API, ETL
     |[A-Z][a-z]+\.js        # Node.js, Vue.js, Next.js
     |[A-Z][a-z]+(?:DB|ML|AI|QL|MQ)  # MongoDB, GraphQL, RabbitMQ
-    """
-)
+    """)
 
 
 def _extract_keywords(text: str) -> set[str]:

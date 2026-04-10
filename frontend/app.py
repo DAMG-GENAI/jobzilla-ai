@@ -186,8 +186,7 @@ def fetch_analytics_data():
         cur = conn.cursor()
 
         # 1. Fetch all active jobs with full data
-        cur.execute(
-            """
+        cur.execute("""
             SELECT id, title, company, description, source_platform,
                    required_skills, preferred_skills, salary_min, salary_max,
                    remote_type, experience_level, location
@@ -195,8 +194,7 @@ def fetch_analytics_data():
             WHERE is_active = true
             ORDER BY scraped_at DESC
             LIMIT 500
-        """
-        )
+        """)
 
         skill_counter = {}
         cooccurrence = (
@@ -880,8 +878,7 @@ def show_agent_debate():
     with st.expander(
         "💡 **Why is this better than a simple match score?**", expanded=False
     ):
-        st.markdown(
-            """
+        st.markdown("""
         | Traditional Matching | 🤖 Agent Debate |
         |---------------------|-----------------|
         | Simple keyword overlap | Deep semantic understanding of your experience |
@@ -895,8 +892,7 @@ def show_agent_debate():
         - 📈 **Improve strategically** — See specific skill gaps to close
         - 💪 **Discover hidden strengths** — The Coach finds things you might not think to mention
         - ⚠️ **Anticipate objections** — Know what a recruiter might flag before your interview
-        """
-        )
+        """)
 
     st.divider()
 
@@ -2611,8 +2607,7 @@ def show_knowledge_graph():
 
     # Legend help
     with st.expander("How to read this graph"):
-        st.markdown(
-            """
+        st.markdown("""
 - **Green nodes** — skills from your resume
 - **Red open nodes** — skills in job market you're missing (gaps)
 - **Coloured solid nodes** — market skills (no resume uploaded)
@@ -2623,8 +2618,7 @@ def show_knowledge_graph():
 - **Solid purple edges** — skill required by job
 - Node **size** = market demand (more jobs → bigger node)
 - Use the **legend** to isolate categories
-        """
-        )
+        """)
 
 
 def show_settings():
@@ -2635,14 +2629,12 @@ def show_settings():
     st.text_input("Backend API URL", value=BACKEND_URL)
 
     st.markdown("### Database Connection")
-    st.code(
-        """
+    st.code("""
 Host: localhost
 Port: 5432
 Database: killmatch
 User: postgres
-    """
-    )
+    """)
 
     st.markdown("### User Preferences")
     st.toggle("Enable email notifications", value=False)

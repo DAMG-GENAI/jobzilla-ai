@@ -53,13 +53,11 @@ def main():
     cur = conn.cursor()
 
     # Get all jobs
-    cur.execute(
-        """
+    cur.execute("""
         SELECT id, title, company, description, source_platform
         FROM jobs
         WHERE is_active = true
-    """
-    )
+    """)
     jobs = cur.fetchall()
     print(f"📊 Found {len(jobs)} jobs to vectorize")
 
