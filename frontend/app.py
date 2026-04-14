@@ -2128,8 +2128,6 @@ def show_analytics():
 
 def show_knowledge_graph():
     """Skill-Job-Candidate Knowledge Graph page."""
-    import math
-
     import networkx as nx
     import plotly.graph_objects as go
 
