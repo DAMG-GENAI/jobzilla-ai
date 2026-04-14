@@ -2220,10 +2220,21 @@ def show_knowledge_graph():
     # -------------------------------------------------------------------------
     with st.spinner("Building knowledge graph from job database..."):
         analytics = fetch_analytics_data()
+        try:
+            graph_resp = requests.get(
+                f"{BACKEND_URL}/api/v1/analytics/skills/graph", timeout=30
+            )
+            graph_resp.raise_for_status()
+            graph_data = graph_resp.json()
+        except Exception as e:
+            st.warning(f"Could not load skill graph from backend: {e}")
+            graph_data = {}
 
     jobs = analytics.get("jobs", [])
-    skill_counts = analytics.get("skill_counts", {})
-    skill_cooccurrence = analytics.get("skill_cooccurrence", {})
+    # skill_counts / skill_cooccurrence come from the backend endpoint.
+    # Cooccurrence keys are "SkillA|||SkillB" strings (JSON-safe).
+    skill_counts = graph_data.get("skill_counts", {})
+    skill_cooccurrence = graph_data.get("skill_cooccurrence", {})
 
     # Candidate skills from session state
     candidate_skills = {
@@ -2271,7 +2282,8 @@ def show_knowledge_graph():
 
     # Skill→Skill relation edges derived from job co-occurrence
     if show_skill_relations:
-        for (s1, s2), count in skill_cooccurrence.items():
+        for pair_key, count in skill_cooccurrence.items():
+            s1, s2 = pair_key.split("|||")
             if (
                 count >= min_cooccurrence
                 and s1 in active_skills
@@ -2306,54 +2318,47 @@ def show_knowledge_graph():
     # Compute layout
     # -------------------------------------------------------------------------
     if layout_algo == "spring":
-        pos = nx.spring_layout(
-            G, k=4.0 / math.sqrt(max(G.number_of_nodes(), 1)), seed=42, iterations=100
-        )
+        pos = nx.spring_layout(G, k=1.8, seed=42, iterations=200)
     else:
         try:
             pos = nx.kamada_kawai_layout(G)
         except Exception:
-            pos = nx.spring_layout(G, seed=42)
+            pos = nx.spring_layout(G, k=1.8, seed=42)
 
     # -------------------------------------------------------------------------
     # Build Plotly traces
     # -------------------------------------------------------------------------
     edge_traces = []
 
-    # Separate edges by type for styling
-    edge_groups = {"has_skill": [], "related": [], "required": []}
-    for u, v, data in G.edges(data=True):
-        edge_groups[data.get("edge_type", "related")].append((u, v))
+    # Draw each edge individually so line width can reflect co-occurrence strength
+    for u, v, edata in G.edges(data=True):
+        etype = edata.get("edge_type", "related")
+        weight = edata.get("weight", 1)
+        x0, y0 = pos[u]
+        x1, y1 = pos[v]
 
-    edge_styles = {
-        "has_skill": {"color": "rgba(16,185,129,0.6)", "dash": "solid", "width": 2},
-        "related": {"color": "rgba(148,163,184,0.6)", "dash": "solid", "width": 1},
-        "required": {"color": "rgba(139,92,246,0.4)", "dash": "solid", "width": 1},
-    }
+        if etype == "has_skill":
+            color = "rgba(16,185,129,0.9)"
+            width = 2.5
+        elif etype == "required":
+            color = "rgba(139,92,246,0.6)"
+            width = 1.2
+        else:
+            # related: thickness + opacity scale with co-occurrence count
+            width = min(4.5, 1.2 + weight / 25)
+            alpha = min(0.85, 0.45 + weight / 120)
+            color = f"rgba(99,102,241,{alpha:.2f})"
 
-    for etype, edges in edge_groups.items():
-        style = edge_styles[etype]
-        ex, ey = [], []
-        for u, v in edges:
-            x0, y0 = pos[u]
-            x1, y1 = pos[v]
-            ex += [x0, x1, None]
-            ey += [y0, y1, None]
-        if ex:
-            edge_traces.append(
-                go.Scatter(
-                    x=ex,
-                    y=ey,
-                    mode="lines",
-                    line={
-                        "color": style["color"],
-                        "width": style["width"],
-                        "dash": style["dash"],
-                    },
-                    hoverinfo="none",
-                    showlegend=False,
-                )
+        edge_traces.append(
+            go.Scatter(
+                x=[x0, x1, None],
+                y=[y0, y1, None],
+                mode="lines",
+                line={"color": color, "width": width},
+                hoverinfo="none",
+                showlegend=False,
             )
+        )
 
     # Node traces — one per visual group so legend works
     node_groups = {}  # key → (xs, ys, texts, hover_texts, sizes, colors, symbols)
@@ -2381,20 +2386,20 @@ def show_knowledge_graph():
         elif is_cand:
             group = f"{cat} (your skill)"
             color = "#10b981"
-            size = max(14, min(28, 10 + count // 3))
+            size = max(18, min(42, 14 + count // 4))
             symbol = "circle"
             hover = f"{node}<br>Category: {cat}<br>Jobs: {count}<br>YOUR SKILL"
         elif not has_resume:
             group = cat
             color = CATEGORY_COLORS.get(cat, "#94a3b8")
-            size = max(12, min(26, 8 + count // 3))
+            size = max(16, min(40, 12 + count // 4))
             symbol = "circle"
             hover = f"{node}<br>Category: {cat}<br>Jobs: {count}"
         else:
             # Resume uploaded but this skill is a gap
             group = f"{cat} (gap)"
             color = "#ef4444"
-            size = max(12, min(26, 8 + count // 3))
+            size = max(16, min(40, 12 + count // 4))
             symbol = "circle-open"
             hover = f"{node}<br>Category: {cat}<br>Jobs: {count}<br>SKILL GAP"
 
@@ -2425,11 +2430,11 @@ def show_knowledge_graph():
                     "size": d["size"],
                     "color": d["color"],
                     "symbol": d["symbol"],
-                    "line": {"width": 1.5, "color": "rgba(255,255,255,0.3)"},
+                    "line": {"width": 1.5, "color": "rgba(255,255,255,0.5)"},
                 },
                 text=d["text"],
                 textposition="top center",
-                textfont={"size": 9, "color": "rgba(255,255,255,0.85)"},
+                textfont={"size": 11, "color": "white", "family": "Inter, sans-serif"},
                 hovertext=d["hover"],
                 hoverinfo="text",
                 name=group,
@@ -2445,22 +2450,39 @@ def show_knowledge_graph():
         layout=go.Layout(
             title={
                 "text": "Skill–Job Knowledge Graph",
-                "font": {"size": 18, "color": "white"},
+                "font": {"size": 22, "color": "white", "family": "Inter, sans-serif"},
                 "x": 0.5,
+                "y": 0.98,
             },
             showlegend=True,
             legend={
-                "bgcolor": "rgba(15,15,35,0.8)",
-                "bordercolor": "rgba(99,102,241,0.3)",
-                "font": {"color": "white", "size": 11},
+                "bgcolor": "rgba(15,15,35,0.9)",
+                "bordercolor": "rgba(99,102,241,0.4)",
+                "borderwidth": 1,
+                "font": {"color": "white", "size": 12},
+                "x": 1.01,
+                "y": 0.5,
+                "xanchor": "left",
+                "yanchor": "middle",
             },
             hovermode="closest",
-            margin={"b": 20, "l": 5, "r": 5, "t": 50},
-            paper_bgcolor="#0f0f23",
-            plot_bgcolor="#0f0f23",
+            margin={"b": 30, "l": 30, "r": 160, "t": 60},
+            paper_bgcolor="#0d1117",
+            plot_bgcolor="#0d1117",
             xaxis={"showgrid": False, "zeroline": False, "showticklabels": False},
             yaxis={"showgrid": False, "zeroline": False, "showticklabels": False},
-            height=680,
+            height=750,
+            annotations=[
+                {
+                    "text": "Edge thickness = co-occurrence strength · Hover nodes for details",
+                    "x": 0.5,
+                    "y": -0.02,
+                    "xref": "paper",
+                    "yref": "paper",
+                    "showarrow": False,
+                    "font": {"size": 11, "color": "rgba(255,255,255,0.45)"},
+                }
+            ],
         ),
     )
 
