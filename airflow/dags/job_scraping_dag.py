@@ -24,10 +24,11 @@ default_args = {
 dag = DAG(
     "job_scraping",
     default_args=default_args,
-    description="Scrape jobs via Tavily API and store with real URLs",
-    schedule_interval="0 */4 * * *",
+    description="[DISABLED] Tavily scraper — produces jobs without valid apply URLs. Use job_scrape_ingest_daily (Greenhouse/Lever) instead.",
+    schedule_interval=None,  # Disabled: Tavily results lack reliable apply links
     start_date=datetime(2024, 1, 1),
     catchup=False,
+    is_paused_upon_creation=True,
     tags=["scraping", "jobs"],
 )
 
