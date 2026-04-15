@@ -106,8 +106,10 @@ docker-compose up -d --build
 ```
 
 ### 4. Access the Application
-- **Frontend**: http://localhost:8501
-- **Backend API Docs**: http://localhost:8000/docs
+- **Frontend**: [http://localhost:8501](https://killmatch-frontend-95714121537.us-central1.run.app/)
+- **Backend API Docs**: [http://localhost:8000/docs](https://killmatch-backend-95714121537.us-central1.run.app/docs)
+- **Job Market MCP: https://killmatch-mcp-jobmarket-95714121537.us-central1.run.app/docs
+- **Github Market MCP: [https://killmatch-mcp-jobmarket-95714121537.us-central1.run.app/docs](https://killmatch-mcp-github-95714121537.us-central1.run.app/docs)
 - **Airflow**: http://localhost:8080
 
 ---
