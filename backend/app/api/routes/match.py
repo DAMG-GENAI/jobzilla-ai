@@ -90,6 +90,7 @@ async def match_jobs(
     location: str | None = Form(None),
     level: str | None = Form(None),
     github_username: str | None = Form(None),
+    num_results: int = Form(10),
     resume: UploadFile | None = File(None),
 ):
     """
@@ -245,10 +246,10 @@ async def match_jobs(
                 company_count[company] = company_count.get(company, 0) + 1
                 if company_count[company] <= 2:
                     matches.append(m)
-                if len(matches) >= 10:
+                if len(matches) >= num_results:
                     break
 
-            # Now extract skills only for top 10 (not 30)
+            # Now extract skills only for the requested number
             resume_skills_lower = {s.lower() for s in skills if s}
             for m in matches:
                 try:
@@ -333,7 +334,7 @@ async def match_jobs(
                 with engine.connect() as conn:
                     result = conn.execute(
                         sql_text(
-                            f"SELECT id, title, company, description, source_platform, source_url FROM jobs WHERE ({like_clauses}) AND is_active = true LIMIT 10"
+                            f"SELECT id, title, company, description, source_platform, source_url FROM jobs WHERE ({like_clauses}) AND is_active = true LIMIT {num_results}"
                         ),
                         params,
                     )
@@ -365,6 +366,7 @@ async def match_jobs(
             "matches": matches,
             "count": len(matches),
             "parsed_skills": [s for s in skills if s],
+            "resume_summary": resume_text[:3000] if resume_text else "",
         }
 
     except Exception as e:

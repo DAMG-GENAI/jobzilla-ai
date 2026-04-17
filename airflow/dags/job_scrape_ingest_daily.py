@@ -72,6 +72,36 @@ def _humanize_name(raw: str) -> str:
     )
 
 
+def _infer_experience_level(title: str, description: str) -> str:
+    text = f"{title} {description[:800]}".lower()
+    if re.search(r"\b(intern|internship|co-?op)\b", text):
+        return "Internship"
+    if re.search(r"\b(entry[- ]level|junior|jr\.?|associate|new grad|0-2 years?|1-2 years?)\b", text):
+        return "Entry"
+    if re.search(r"\b(vp |vice president|chief |cto|ceo|coo|president)\b", text):
+        return "Executive"
+    if re.search(r"\b(principal|staff engineer|distinguished|fellow)\b", text):
+        return "Staff"
+    if re.search(r"\b(senior|sr\.? |lead |architect|director|head of|manager|[5-9]\+? years?|1[0-9]\+? years?)\b", text):
+        return "Senior"
+    return "Mid"
+
+
+def _infer_remote_type(title: str, location: str, description: str) -> str:
+    text = f"{title} {location} {description[:600]}".lower()
+    if re.search(r"\b(fully remote|100% remote|work from home|wfh|remote only|remote-first|remote first)\b", text):
+        return "Remote"
+    if re.search(r"\bremote\b", text) and re.search(r"\b(hybrid|flexible|occasional)\b", text):
+        return "Hybrid"
+    if re.search(r"\bhybrid\b", text):
+        return "Hybrid"
+    if re.search(r"\b(on-?site|in[- ]office|in[- ]person)\b", text):
+        return "On-site"
+    if re.search(r"\bremote\b", text):
+        return "Remote"
+    return "On-site"
+
+
 def _get_seed_urls() -> list[str]:
     max_seeds = int(os.getenv("JOB_SCRAPE_MAX_SEEDS", str(DEFAULT_MAX_SEEDS)))
     value = os.getenv("JOB_SCRAPE_SEEDS", "")
@@ -137,15 +167,20 @@ def _fetch_greenhouse_jobs(session: Any, seed_url: str) -> list[dict[str, Any]]:
             or data.get("name")
             or _humanize_name(board)
         )
+        title = (job.get("title") or "").strip()
+        description = _html_to_text(job.get("content") or "")
+        loc_str = location or ""
         jobs.append(
             {
-                "title": (job.get("title") or "").strip(),
+                "title": title,
                 "company": company,
                 "location": location or None,
-                "description": _html_to_text(job.get("content") or ""),
+                "description": description,
                 "source_url": source_url,
                 "source_platform": "greenhouse",
                 "scraped_at": scraped_at,
+                "experience_level": _infer_experience_level(title, description),
+                "remote_type": _infer_remote_type(title, loc_str, description),
             }
         )
     print(f"[greenhouse] {board}: scraped {len(jobs)} jobs")
@@ -180,15 +215,20 @@ def _fetch_lever_jobs(session: Any, seed_url: str) -> list[dict[str, Any]]:
                 content = section.get("content") if isinstance(section, dict) else ""
                 if content:
                     description_chunks.append(content)
+        title = (posting.get("text") or "").strip()
+        loc_str = categories.get("location") or ""
+        description = _html_to_text("\n".join(description_chunks))
         jobs.append(
             {
-                "title": (posting.get("text") or "").strip(),
+                "title": title,
                 "company": posting.get("company") or _humanize_name(site),
-                "location": categories.get("location"),
-                "description": _html_to_text("\n".join(description_chunks)),
+                "location": loc_str or None,
+                "description": description,
                 "source_url": source_url,
                 "source_platform": "lever",
                 "scraped_at": scraped_at,
+                "experience_level": _infer_experience_level(title, description),
+                "remote_type": _infer_remote_type(title, loc_str, description),
             }
         )
     print(f"[lever] {site}: scraped {len(jobs)} jobs")
@@ -294,6 +334,8 @@ def _upsert_jobs(jobs: list[dict[str, Any]]) -> dict[str, int]:
                     (job.get("source_platform") or "unknown").strip() or "unknown"
                 )[:100],
                 "scraped_at": _parse_scraped_at(job.get("scraped_at")),
+                "experience_level": job.get("experience_level"),
+                "remote_type": job.get("remote_type"),
             }
         )
 
@@ -303,10 +345,12 @@ def _upsert_jobs(jobs: list[dict[str, Any]]) -> dict[str, int]:
 
     upsert_sql = """
         INSERT INTO jobs (
-            title, company, location, description, source_url, source_platform, scraped_at, is_active
+            title, company, location, description, source_url, source_platform,
+            scraped_at, is_active, experience_level, remote_type
         )
         VALUES (
-            %(title)s, %(company)s, %(location)s, %(description)s, %(source_url)s, %(source_platform)s, %(scraped_at)s, true
+            %(title)s, %(company)s, %(location)s, %(description)s, %(source_url)s,
+            %(source_platform)s, %(scraped_at)s, true, %(experience_level)s, %(remote_type)s
         )
         ON CONFLICT (source_url)
         DO UPDATE SET
@@ -316,7 +360,9 @@ def _upsert_jobs(jobs: list[dict[str, Any]]) -> dict[str, int]:
             description = EXCLUDED.description,
             source_platform = EXCLUDED.source_platform,
             scraped_at = EXCLUDED.scraped_at,
-            is_active = true
+            is_active = true,
+            experience_level = EXCLUDED.experience_level,
+            remote_type = EXCLUDED.remote_type
         RETURNING (xmax = 0) AS inserted;
     """
 
