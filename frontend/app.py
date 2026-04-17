@@ -532,8 +532,10 @@ def show_job_match():
         github_username = st.text_input(
             "GitHub Username (optional)",
             placeholder="e.g., octocat",
+            value=st.session_state.get("github_username", ""),
             help="We'll analyze your repositories for additional insights",
         )
+        st.session_state["github_username"] = github_username
 
         if uploaded_file:
             st.success("✅ Resume uploaded successfully!")
@@ -549,17 +551,38 @@ def show_job_match():
         search_query = st.text_input(
             "What role are you looking for?",
             placeholder="e.g., Senior Python Developer",
+            value=st.session_state.get("search_query", ""),
         )
+        st.session_state["search_query"] = search_query
 
         location = st.text_input(
-            "Preferred location", placeholder="e.g., San Francisco, CA or Remote"
+            "Preferred location",
+            placeholder="e.g., San Francisco, CA or Remote",
+            value=st.session_state.get("location", ""),
         )
+        st.session_state["location"] = location
 
+        exp_options = ["Entry", "Mid", "Senior", "Lead", "Executive"]
         experience_level = st.select_slider(
             "Experience Level",
-            options=["Entry", "Mid", "Senior", "Lead", "Executive"],
-            value="Senior",
+            options=exp_options,
+            value=st.session_state.get("experience_level", "Senior"),
         )
+        st.session_state["experience_level"] = experience_level
+
+        num_results_options = [5, 10, 15, 20]
+        saved_num = st.session_state.get("num_results", 10)
+        num_results = st.selectbox(
+            "Number of job recommendations",
+            options=num_results_options,
+            index=(
+                num_results_options.index(saved_num)
+                if saved_num in num_results_options
+                else 1
+            ),
+            help="How many matched jobs to return",
+        )
+        st.session_state["num_results"] = num_results
 
     st.divider()
 
@@ -576,6 +599,7 @@ def show_job_match():
                     "location": location,
                     "level": experience_level,
                     "github_username": github_username,
+                    "num_results": num_results,
                 }
 
                 # If resume uploaded, send it
@@ -612,10 +636,12 @@ def show_job_match():
                     results = response.json()
                     st.session_state["matched_jobs"] = results.get("matches", [])
                     st.session_state["has_matches"] = True
-                    # Store parsed skills for analytics skill gap report
                     parsed_skills = results.get("parsed_skills", [])
                     if parsed_skills:
                         st.session_state["resume_skills"] = parsed_skills
+                    resume_summary = results.get("resume_summary", "")
+                    if resume_summary:
+                        st.session_state["resume_summary"] = resume_summary
                     st.rerun()
                 else:
                     st.error(f"Validation failed: {response.text}")
@@ -831,7 +857,7 @@ def show_agent_debate():
 
     # Get resume data from session
     resume_summary = st.session_state.get("resume_summary", "")
-    resume_skills = []
+    resume_skills = st.session_state.get("resume_skills", [])
 
     # UI Controls
     col1, col2 = st.columns([1, 2])
