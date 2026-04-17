@@ -182,13 +182,6 @@ The system uses Docker Compose to manage all services (Backend, Frontend, Databa
 docker-compose up -d --build
 ```
 
-### 4. Access the Application
-- **Frontend**: http://localhost:8501
-- **Backend API Docs**: http://localhost:8000/docs
-- **Airflow**: http://localhost:8080
-
----
-
 ## 📂 Project Structure
 
 ```
