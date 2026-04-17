@@ -322,11 +322,11 @@ streamlit run app.py
 ### Access the Application
 | Service | URL |
 |---------|-----|
-| **Frontend** | http://localhost:8501 |
-| **Backend API Docs** | http://localhost:8000/docs |
-| **Airflow Dashboard** | http://localhost:8080 |
-| **GitHub MCP Server** | http://localhost:8001 |
-| **Job Market MCP Server** | http://localhost:8002 |
+| **Frontend** | https://killmatch-frontend-95714121537.us-central1.run.app/
+| **Backend API Docs** | (https://killmatch-backend-95714121537.us-central1.run.app/docs)
+| **Airflow Dashboard** | http://localhost:8501
+| **GitHub MCP Server** | (https://killmatch-mcp-github-95714121537.us-central1.run.app/docs#/)
+| **Job Market MCP Server** | https://killmatch-mcp-jobmarket-95714121537.us-central1.run.app/docs
 
 ---
 
