@@ -389,37 +389,7 @@ Airflow DAG (7 AM daily)
 
 ---
 
-## ⚙️ Environment Variables Reference
 
-Create a `.env` file from `.env.example` and configure these values:
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `OPENAI_API_KEY` | ✅ | OpenAI API key for GPT-4 and embeddings |
-| `OPENAI_MODEL` | ❌ | LLM model name (default: `gpt-4o`) |
-| `OPENAI_EMBEDDING_MODEL` | ❌ | Embedding model (default: `text-embedding-3-small`) |
-| `PINECONE_API_KEY` | ✅ | Pinecone vector database API key |
-| `PINECONE_ENVIRONMENT` | ❌ | Pinecone region (default: `us-east-1`) |
-| `PINECONE_INDEX_NAME` | ❌ | Index name (default: `killmatch-jobs`) |
-| `GITHUB_TOKEN` | ✅ | GitHub personal access token for MCP server |
-| `TAVILY_API_KEY` | ✅ | Tavily API key for job scraping |
-| `MISTRAL_API_KEY` | ✅ | Mistral AI key for resume parsing |
-| `GEMINI_API_KEY` | ❌ | Google Gemini key for fallback LLM |
-| `DATABASE_URL` | ✅ | PostgreSQL connection string |
-| `REDIS_URL` | ❌ | Redis URL (default: `redis://localhost:6379/0`) |
-| `AWS_ACCESS_KEY_ID` | ✅ | AWS credentials for S3 storage |
-| `AWS_SECRET_ACCESS_KEY` | ✅ | AWS secret key |
-| `AWS_S3_BUCKET` | ❌ | S3 bucket name (default: `jobzilla-storage`) |
-| `GOOGLE_CLIENT_ID` | ✅ | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | ✅ | Google OAuth client secret |
-| `SMTP_HOST` | ❌ | Email server (default: `smtp.gmail.com`) |
-| `SMTP_PORT` | ❌ | SMTP port (default: `587`) |
-| `SMTP_USER` | ❌ | Gmail address for sending notifications |
-| `SMTP_PASSWORD` | ❌ | Gmail app password |
-| `MCP_GITHUB_SERVER_URL` | ❌ | GitHub MCP URL (default: `http://localhost:8001`) |
-| `MCP_JOBMARKET_SERVER_URL` | ❌ | Job Market MCP URL (default: `http://localhost:8002`) |
-
----
 
 ## 🏛️ Data Governance
 
