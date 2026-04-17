@@ -575,7 +575,11 @@ def show_job_match():
         num_results = st.selectbox(
             "Number of job recommendations",
             options=num_results_options,
-            index=num_results_options.index(saved_num) if saved_num in num_results_options else 1,
+            index=(
+                num_results_options.index(saved_num)
+                if saved_num in num_results_options
+                else 1
+            ),
             help="How many matched jobs to return",
         )
         st.session_state["num_results"] = num_results

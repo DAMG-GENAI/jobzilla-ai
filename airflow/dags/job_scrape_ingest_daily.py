@@ -76,22 +76,33 @@ def _infer_experience_level(title: str, description: str) -> str:
     text = f"{title} {description[:800]}".lower()
     if re.search(r"\b(intern|internship|co-?op)\b", text):
         return "Internship"
-    if re.search(r"\b(entry[- ]level|junior|jr\.?|associate|new grad|0-2 years?|1-2 years?)\b", text):
+    if re.search(
+        r"\b(entry[- ]level|junior|jr\.?|associate|new grad|0-2 years?|1-2 years?)\b",
+        text,
+    ):
         return "Entry"
     if re.search(r"\b(vp |vice president|chief |cto|ceo|coo|president)\b", text):
         return "Executive"
     if re.search(r"\b(principal|staff engineer|distinguished|fellow)\b", text):
         return "Staff"
-    if re.search(r"\b(senior|sr\.? |lead |architect|director|head of|manager|[5-9]\+? years?|1[0-9]\+? years?)\b", text):
+    if re.search(
+        r"\b(senior|sr\.? |lead |architect|director|head of|manager|[5-9]\+? years?|1[0-9]\+? years?)\b",
+        text,
+    ):
         return "Senior"
     return "Mid"
 
 
 def _infer_remote_type(title: str, location: str, description: str) -> str:
     text = f"{title} {location} {description[:600]}".lower()
-    if re.search(r"\b(fully remote|100% remote|work from home|wfh|remote only|remote-first|remote first)\b", text):
+    if re.search(
+        r"\b(fully remote|100% remote|work from home|wfh|remote only|remote-first|remote first)\b",
+        text,
+    ):
         return "Remote"
-    if re.search(r"\bremote\b", text) and re.search(r"\b(hybrid|flexible|occasional)\b", text):
+    if re.search(r"\bremote\b", text) and re.search(
+        r"\b(hybrid|flexible|occasional)\b", text
+    ):
         return "Hybrid"
     if re.search(r"\bhybrid\b", text):
         return "Hybrid"
