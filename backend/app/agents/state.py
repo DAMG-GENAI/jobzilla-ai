@@ -75,6 +75,7 @@ class AgentState(TypedDict, total=False):
     # Metadata
     # =========================================================================
     error: str | None
+    include_cover_letter: bool
     processing_started_at: str
     tokens_used: int
     messages: list[dict[str, Any]]  # For debugging/logging

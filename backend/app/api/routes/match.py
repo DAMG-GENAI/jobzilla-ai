@@ -23,6 +23,7 @@ router = APIRouter()
 # Initialize clients (safe - won't crash if keys are missing)
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX = os.getenv("PINECONE_INDEX_NAME", "killmatch-jobs")
+PINECONE_NAMESPACE = os.getenv("PINECONE_NAMESPACE") or None
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 try:
@@ -59,7 +60,7 @@ def extract_skills_with_llm(text: str, max_skills: int = 10) -> list[str]:
 
     try:
         response = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=os.getenv("OPENAI_FAST_MODEL", "gpt-4o-mini"),
             messages=[
                 {
                     "role": "system",
@@ -214,7 +215,11 @@ async def match_jobs(
                 raise Exception("Pinecone not initialized")
 
             search_results = index.query(
-                vector=query_vector, top_k=200, include_metadata=True
+                vector=query_vector,
+                # Widen the candidate pool when a location filter will cut it down
+                top_k=1000 if (location and location.strip()) else 200,
+                include_metadata=True,
+                namespace=PINECONE_NAMESPACE,
             )
 
             # Build matches without LLM calls first (fast)
@@ -232,12 +237,25 @@ async def match_jobs(
                         "description": metadata.get("description", "") or "",
                         "url": metadata.get("url", ""),
                         "source": metadata.get("source", ""),
+                        "location": metadata.get("location", ""),
                         "match_score": match.score,
                         "recruiter_concerns": [],
                         "coach_highlights": [],
                         "missing_skills": [],
                     }
                 )
+
+            # Hard location filter. The location is also in the embedded query text,
+            # which only *nudges* similarity; this makes it an actual constraint.
+            # Falls back to unfiltered results if nothing in the top 200 matches.
+            if location and location.strip():
+                wanted = location.strip().lower()
+                located = [m for m in all_matches if wanted in m["location"].lower()]
+                print(
+                    f"📍 Location filter '{location}': {len(located)}/{len(all_matches)} candidates"
+                )
+                if located:
+                    all_matches = located
 
             # Diversify: max 2 jobs per company
             company_count = {}
@@ -257,6 +275,7 @@ async def match_jobs(
                     job_skills = set(extract_skills_with_llm(full_text, max_skills=10))
                     job_skills_lower = {s.lower() for s in job_skills if s}
                     missing = job_skills_lower - resume_skills_lower
+                    m["required_skills"] = list(job_skills)
                     m["missing_skills"] = [
                         s for s in job_skills if s.lower() in missing
                     ][:5]

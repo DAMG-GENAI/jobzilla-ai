@@ -39,6 +39,7 @@ def get_coach_prompt(
     skills: list,
     job_requirements: list,
     strengths: list,
+    opponent_arguments: list | None = None,
 ) -> str:
     """Generate the coach evaluation prompt."""
 
@@ -60,4 +61,17 @@ def get_coach_prompt(
 ## Initial Analysis:
 - Matching Skills: {len(matching)} ({', '.join(list(matching)[:10])})
 
+{format_opponent_arguments(opponent_arguments or [], "Ruthless Recruiter's Concerns (respond to these)", "Respond to the Recruiter's concerns above: counter the ones you can refute with evidence from the profile, and acknowledge the ones that are genuine gaps.")}
+
 Now provide your advocacy with specific strengths and their impact."""
+
+
+def format_opponent_arguments(arguments: list, title: str, instruction: str) -> str:
+    """Render the other agent's arguments so this agent can respond to them."""
+    if not arguments:
+        return ""
+    lines = "\n".join(
+        f"- [{a.strength}] {a.point}: {a.evidence or 'no evidence given'}"
+        for a in arguments
+    )
+    return f"\n\n## {title}\n{lines}\n\n{instruction}"

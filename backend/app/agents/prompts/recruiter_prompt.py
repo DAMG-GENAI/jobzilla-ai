@@ -33,7 +33,11 @@ Remember: Your job is to stress-test the candidate's fit. The Coach agent will p
 
 
 def get_recruiter_prompt(
-    resume_summary: str, job_summary: str, skills: list, job_requirements: list
+    resume_summary: str,
+    job_summary: str,
+    skills: list,
+    job_requirements: list,
+    opponent_arguments: list | None = None,
 ) -> str:
     """Generate the recruiter evaluation prompt."""
 
@@ -56,4 +60,17 @@ def get_recruiter_prompt(
 - Matching Skills: {len(matching)} ({', '.join(list(matching)[:10])})
 - Missing Skills: {len(missing)} ({', '.join(list(missing)[:10])})
 
+{format_opponent_arguments(opponent_arguments or [], "Career Coach's Previous Arguments (rebut these)", "This is a re-debate round: the Judge found you and the Coach too far apart. Directly address the Coach's points above: concede the ones that are well-evidenced (and adjust your score), and explain why the others do not resolve your concerns.")}
+
 Now provide your critical evaluation with specific concerns and their severity."""
+
+
+def format_opponent_arguments(arguments: list, title: str, instruction: str) -> str:
+    """Render the other agent's arguments so this agent can respond to them."""
+    if not arguments:
+        return ""
+    lines = "\n".join(
+        f"- [{a.strength}] {a.point}: {a.evidence or 'no evidence given'}"
+        for a in arguments
+    )
+    return f"\n\n## {title}\n{lines}\n\n{instruction}"

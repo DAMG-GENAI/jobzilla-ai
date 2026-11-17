@@ -44,7 +44,9 @@ async def profile_parser_node(state: AgentState) -> dict[str, Any]:
         experience_parts.append(f"{exp.title} at {exp.company}")
 
     experience_summary = (
-        "; ".join(experience_parts) if experience_parts else "No work experience listed"
+        "; ".join(experience_parts)
+        if experience_parts
+        else (resume.summary or "No work experience listed")
     )
 
     # Identify strengths

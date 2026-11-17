@@ -42,6 +42,9 @@ async def recruiter_node(state: AgentState) -> dict[str, Any]:
         job_summary=job_summary,
         skills=parsed_skills,
         job_requirements=job_requirements,
+        opponent_arguments=(
+            state.get("coach_arguments", []) if current_round > 1 else []
+        ),
     )
 
     # Call LLM
@@ -64,7 +67,7 @@ async def recruiter_node(state: AgentState) -> dict[str, Any]:
                 {
                     "role": "user",
                     "content": prompt
-                    + '\n\nRespond in JSON format: {"arguments": [{"point": string, "evidence": string, "strength": string, "category": string}], "score": number}',
+                    + '\n\nRespond in JSON format: {"arguments": [{"point": string, "evidence": string, "strength": string, "category": string}], "score": number}\nThe score MUST be an integer from 0 to 100 (not 0-10).',
                 },
             ]
         )
@@ -91,6 +94,8 @@ async def recruiter_node(state: AgentState) -> dict[str, Any]:
                 )
 
             score = float(data.get("score", 50))
+            if 0 < score <= 10:  # model answered on a 0-10 scale
+                score *= 10
 
         except (json.JSONDecodeError, KeyError, ValueError):
             # Fallback: generate basic arguments

@@ -23,6 +23,9 @@ async def cover_writer_node(state: AgentState) -> dict[str, Any]:
     - Proactively address concerns
     - Tailor the message to the specific role
     """
+    if not state.get("include_cover_letter", True):
+        return {"cover_letter": None}
+
     resume = state["resume_data"]
     job = state["job_data"]
     state.get("final_verdict")

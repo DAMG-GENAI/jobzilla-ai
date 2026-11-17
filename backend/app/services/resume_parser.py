@@ -199,7 +199,7 @@ Return ONLY the JSON object, nothing else."""
                 "Content-Type": "application/json",
             },
             json={
-                "model": "mistral-large-latest",
+                "model": os.getenv("MISTRAL_MODEL", "open-mistral-nemo"),
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.1,  # Low for consistent parsing
                 "max_tokens": 4000,

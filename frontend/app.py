@@ -671,7 +671,8 @@ def show_job_match():
                     else:
                         st.markdown(f"**{job['title']}** at {job['company']}")
                     st.caption(
-                        f"Position at {job['company']}. Found via {job.get('source', 'LinkedIn')}."
+                        f"📍 {job.get('location') or 'Location not listed'} · "
+                        f"Found via {job.get('source', 'LinkedIn')}."
                     )
                 with col2:
                     score = (
@@ -716,9 +717,8 @@ def run_langgraph_debate(job, resume_text, resume_skills, github_username):
             "job_title": job.get("title", "Unknown"),
             "job_company": job.get("company", "Unknown"),
             "job_description": job.get("description", "")[:2000],  # Limit length
-            "job_required_skills": job.get(
-                "missing_skills", []
-            ),  # Use missing skills as proxy for important ones
+            "job_required_skills": job.get("required_skills")
+            or job.get("missing_skills", []),
             "github_username": github_username,
             "include_cover_letter": False,
         }

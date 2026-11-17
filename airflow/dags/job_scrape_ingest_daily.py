@@ -179,7 +179,8 @@ def _fetch_greenhouse_jobs(session: Any, seed_url: str) -> list[dict[str, Any]]:
             or _humanize_name(board)
         )
         title = (job.get("title") or "").strip()
-        description = _html_to_text(job.get("content") or "")
+        # Greenhouse returns HTML-escaped HTML: first pass unescapes, second strips tags
+        description = _html_to_text(_html_to_text(job.get("content") or ""))
         loc_str = location or ""
         jobs.append(
             {
@@ -499,7 +500,7 @@ def embed_jobs_task(**context) -> int:
                 }
             )
 
-        index.upsert(vectors=vectors)
+        index.upsert(vectors=vectors, namespace=os.getenv("PINECONE_NAMESPACE") or None)
 
         update_cur = conn.cursor()
         for row in batch:

@@ -134,6 +134,7 @@ async def run_agent_pipeline(
         "skill_gaps": [],
         "improvement_suggestions": [],
         "tokens_used": 0,
+        "include_cover_letter": include_cover_letter,
         "messages": [],
         "processing_started_at": datetime.utcnow().isoformat(),
     }
